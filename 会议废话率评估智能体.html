@@ -1,0 +1,1313 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>会议废话率评估智能体</title>
+<style>
+:root{
+  --bg:#f4f5f7; --card:#ffffff; --ink:#1f2329; --muted:#6b7280; --line:#e5e7eb;
+  --red:#c8102e; --red2:#e51937; --red-soft:#fff1f2; --red-line:#fecdd3;
+  --green:#16a34a; --green-soft:#ecfdf3; --amber:#d97706; --amber-soft:#fff7ed;
+  --blue:#2563eb; --blue-soft:#eff6ff; --purple:#7c3aed; --shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px rgba(16,24,40,.05);
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei","Segoe UI",sans-serif;font-size:14px;line-height:1.6}
+button,input,textarea,select{font-family:inherit;font-size:inherit;color:inherit}
+button{cursor:pointer}
+.wrap{max-width:1440px;margin:0 auto;padding:24px 28px 60px}
+
+/* header */
+header{background:linear-gradient(120deg,#a50d26 0%,#c8102e 55%,#df1f3d 100%);color:#fff;border-radius:14px;padding:22px 28px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+header:after{content:"";position:absolute;right:-60px;top:-90px;width:280px;height:280px;border-radius:50%;border:36px solid rgba(255,255,255,.07)}
+header h1{margin:0;font-size:24px;letter-spacing:.5px;font-weight:700;display:flex;align-items:center;gap:10px}
+header h1 .dot{width:10px;height:10px;border-radius:50%;background:#fff;box-shadow:0 0 0 5px rgba(255,255,255,.18)}
+header p{margin:6px 0 0;opacity:.88;font-size:13px}
+.hdr-badges{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+.hdr-badges span{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.24);padding:3px 10px;border-radius:99px;font-size:12px}
+
+/* common */
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow)}
+.card-h{padding:14px 18px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:12px}
+.card-h h2{margin:0;font-size:15px;font-weight:700;display:flex;align-items:center;gap:8px}
+.card-h h2:before{content:"";width:3px;height:15px;background:var(--red);border-radius:2px}
+.card-b{padding:18px}
+.grid2{display:grid;grid-template-columns:minmax(340px,.85fr) minmax(440px,1.15fr);gap:18px;margin-top:18px}
+label.f{display:block;font-size:12px;color:var(--muted);margin:0 0 6px;font-weight:600}
+label.f b{color:var(--red)}
+input[type=text],input[type=number],textarea,select{width:100%;border:1px solid #d6d9de;border-radius:8px;padding:9px 11px;background:#fff;outline:none;transition:.15s}
+input[type=text]:focus,input[type=number]:focus,textarea:focus,select:focus{border-color:var(--red);box-shadow:0 0 0 3px rgba(200,16,46,.09)}
+textarea{resize:vertical;line-height:1.65}
+.row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:14px}
+.hint{font-size:11px;color:#9ca3af;margin-top:5px}
+.btn{border:1px solid var(--line);background:#fff;border-radius:8px;padding:8px 14px;font-weight:600;transition:.15s}
+.btn:hover{border-color:var(--red);color:var(--red)}
+.btn.primary{background:var(--red);color:#fff;border-color:var(--red)}
+.btn.primary:hover{background:var(--red2);color:#fff}
+.btn.ghost{background:transparent}
+.actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:18px}
+.switch{display:inline-flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;user-select:none}
+.switch input{accent-color:var(--red);width:15px;height:15px}
+.tag{display:inline-block;background:var(--red-soft);color:var(--red);border:1px solid var(--red-line);border-radius:6px;padding:2px 8px;font-size:11px;margin:0 6px 6px 0}
+
+/* ai panel */
+.ai-panel{margin-top:14px;border:1px dashed #f0a9b6;background:#fffafb;border-radius:10px;padding:14px}
+.ai-panel[hidden]{display:none}
+.ai-grid{display:grid;grid-template-columns:1.4fr 1.1fr 1fr;gap:10px}
+
+/* kpi */
+#result[hidden]{display:none}
+.kpis{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-top:18px}
+.kpi{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.kpi:after{content:"";position:absolute;right:-16px;bottom:-24px;width:76px;height:76px;border-radius:50%;background:var(--red-soft)}
+.kpi .k{font-size:12px;color:var(--muted);font-weight:600;position:relative;z-index:1}
+.kpi .v{font-size:27px;font-weight:800;color:var(--ink);line-height:1.3;position:relative;z-index:1}
+.kpi .v small{font-size:13px;font-weight:600;color:var(--muted)}
+.kpi .s{font-size:11px;color:var(--muted);position:relative;z-index:1}
+.kpi.hot .v{color:var(--red)}
+
+/* tabs */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line);padding:0 18px;margin-top:18px;background:#fff;border-radius:12px 12px 0 0}
+.tab{border:none;background:none;padding:13px 16px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;margin-bottom:-1px}
+.tab.on{color:var(--red);border-bottom-color:var(--red)}
+.tab:hover{color:var(--ink)}
+.tabpane{display:none;background:#fff;border:1px solid var(--line);border-top:none;border-radius:0 0 12px 12px;padding:18px;box-shadow:var(--shadow)}
+.tabpane.on{display:block}
+
+/* ranking */
+.rank-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px}
+.rank-box{border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.rank-box h3{margin:0;padding:10px 14px;background:#fafbfc;font-size:13px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between}
+.rank-box h3 span{color:var(--muted);font-weight:400;font-size:11px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:9px 12px;text-align:left;border-bottom:1px solid #f0f1f3;vertical-align:top}
+th{background:#fafbfc;color:var(--muted);font-size:11px;font-weight:700;letter-spacing:.3px}
+tr:last-child td{border-bottom:none}
+tbody tr:hover{background:#fff9fa}
+.rk{display:inline-flex;width:20px;height:20px;align-items:center;justify-content:center;border-radius:5px;background:#f1f2f4;font-size:11px;font-weight:700;color:var(--muted)}
+.rk.top{background:var(--red);color:#fff}
+.medal{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+.medal-card{flex:1;min-width:180px;border:1px solid var(--line);border-radius:10px;padding:14px;background:linear-gradient(180deg,#fff,#fffafb)}
+.medal-card .who{font-weight:800;font-size:15px;display:flex;align-items:center;gap:8px}
+.medal-card .who i{font-style:normal;background:var(--red);color:#fff;width:22px;height:22px;border-radius:6px;display:inline-flex;align-items:center;justify-content:center;font-size:11px}
+.medal-card .metric{font-size:12px;color:var(--muted);margin-top:7px}
+.medal-card .metric b{color:var(--red);font-size:17px}
+.bar{height:6px;background:#f0f1f3;border-radius:99px;overflow:hidden;margin-top:8px}
+.bar i{display:block;height:100%;background:var(--red);border-radius:99px}
+
+/* detail */
+.filters{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+.filters select,.filters input{width:auto;min-width:130px}
+.filters input[type=text]{min-width:200px}
+.sent{line-height:1.7}
+.sent em{font-style:normal;background:#ffe4e6;color:#9f1239;border-radius:3px;padding:0 2px}
+.pill{display:inline-block;border-radius:99px;padding:2px 8px;font-size:11px;font-weight:600;white-space:nowrap}
+.pill.fluff{background:var(--red-soft);color:var(--red);border:1px solid var(--red-line)}
+.pill.ok{background:var(--green-soft);color:var(--green);border:1px solid #bbf7d0}
+.pill.t{background:#f3f4f6;color:#4b5563;border:1px solid #e5e7eb}
+.scorebar{display:flex;align-items:center;gap:6px;min-width:104px}
+.scorebar .bar{flex:1;margin:0}
+.scorebar .bar i{background:var(--green)}
+.scorebar.low .bar i{background:var(--red)}
+.scorebar b{font-size:11px;width:26px;text-align:right}
+.reason{font-size:11px;color:var(--muted);max-width:280px}
+
+/* types */
+.type-grid{display:grid;grid-template-columns:280px 1fr;gap:22px}
+.donut-wrap{display:flex;flex-direction:column;align-items:center;gap:12px}
+.donut{width:190px;height:190px;border-radius:50%;position:relative}
+.donut:after{content:"";position:absolute;inset:30px;background:#fff;border-radius:50%}
+.donut .center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1}
+.donut .center b{font-size:26px;color:var(--red)}
+.donut .center span{font-size:11px;color:var(--muted)}
+.legend{width:100%}
+.legend div{display:flex;align-items:center;gap:8px;font-size:12px;padding:4px 0}
+.legend i{width:10px;height:10px;border-radius:3px;flex:none}
+.legend span{flex:1}
+.legend b{font-variant-numeric:tabular-nums}
+.type-list .tl{margin-bottom:14px}
+.type-list .tl .top{display:flex;justify-content:space-between;font-size:12px;margin-bottom:5px}
+.type-list .tl .bar{height:9px}
+.type-list .tl .ex{font-size:11px;color:var(--muted);margin-top:5px;line-height:1.6}
+
+/* report */
+.report{background:#fbfcfd;border:1px solid var(--line);border-radius:10px;padding:20px;font-size:13px;line-height:1.9}
+.report h3{margin:0 0 10px;font-size:16px;color:var(--red)}
+.report h4{margin:18px 0 6px;font-size:13px}
+.report p{margin:4px 0}
+.report ul{margin:4px 0;padding-left:20px}
+.notice{background:var(--amber-soft);border:1px solid #fed7aa;color:#92400e;padding:10px 14px;border-radius:8px;font-size:12px;margin-top:12px}
+.status{font-size:12px;color:var(--muted)}
+
+/* timeline */
+.chart-head{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:10px}
+.chart-box{border:1px solid var(--line);border-radius:10px;background:#fff;padding:12px}
+.chart-box svg{width:100%;height:auto;display:block}
+.insights{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}
+.insight{border:1px solid var(--line);border-radius:9px;padding:12px 14px;background:#fbfcfd}
+.insight .k{font-size:11px;color:var(--muted)}
+.insight .v{font-size:17px;font-weight:800;color:var(--red);margin-top:2px}
+.insight .s{font-size:11px;color:var(--muted);line-height:1.5}
+.chart-legend{display:flex;gap:16px;font-size:11px;color:var(--muted);align-items:center}
+.chart-legend i{display:inline-block;width:12px;height:8px;border-radius:2px;margin-right:5px;vertical-align:middle}
+
+/* annotated minutes */
+.annot-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:14px}
+.annot{max-height:640px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:4px 16px;background:#fff}
+.annot-rec{display:grid;grid-template-columns:74px 78px 1fr;gap:10px;padding:11px 0;border-bottom:1px dashed #e8eaed}
+.annot-rec:last-child{border-bottom:none}
+.annot-time{font-size:11px;color:var(--muted);font-variant-numeric:tabular-nums;padding-top:3px}
+.annot-who{font-weight:700;color:#374151;font-size:13px}
+.annot-text{line-height:2.05;font-size:13px}
+.annot-text .sep{color:#c4c7cc;padding:0 2px}
+.mark-fluff{background:#fff1f2;border-bottom:2px solid #f4a6b3;border-radius:3px;padding:1px 2px}
+.mark-note{font-size:10px;color:#fff;background:var(--red);border-radius:4px;padding:1px 5px;margin-left:5px;white-space:nowrap;font-weight:600;vertical-align:1px}
+.annot .normal{color:#374151}
+
+/* compare */
+.cmp-table td:first-child{max-width:260px}
+.cmp-best{background:#ecfdf3!important}
+.cmp-best b{color:var(--green)}
+.cmp-bars{margin-top:18px}
+.cmp-row{display:grid;grid-template-columns:190px 1fr 66px;gap:12px;align-items:center;margin-bottom:11px;font-size:12px}
+.cmp-row .bar{height:13px;margin:0;border-radius:4px}
+.cmp-row .bar i{background:linear-gradient(90deg,#e51937,#c8102e)}
+.cmp-row b{text-align:right;font-variant-numeric:tabular-nums}
+.overlay-legend{display:flex;gap:12px;flex-wrap:wrap;margin-top:10px;font-size:11px;color:var(--muted)}
+.overlay-legend i{display:inline-block;width:14px;height:3px;border-radius:2px;margin-right:5px;vertical-align:middle}
+.empty{text-align:center;color:#9ca3af;padding:34px 12px;border:1px dashed var(--line);border-radius:10px;background:#fbfcfd}
+.footer{text-align:center;color:#9ca3af;font-size:11px;margin-top:26px}
+@media(max-width:1050px){.grid2{grid-template-columns:1fr}.kpis{grid-template-columns:repeat(2,1fr)}.rank-grid{grid-template-columns:1fr}.type-grid{grid-template-columns:1fr}.ai-grid{grid-template-columns:1fr}}
+
+@media print{
+  body{background:#fff}
+  .no-print,header .hdr-badges{display:none!important}
+  .wrap{max-width:none;padding:0}
+  .tabpane{display:block!important;border:none;box-shadow:none;padding:0}
+  .tabs{display:none}
+  .card{box-shadow:none}
+}
+
+/* ===== 卡通潮酷主题（默认）===== */
+body.theme-cartoon{
+  --bg:#faf7ff; --card:#fff; --ink:#2b2440; --muted:#7f7896; --line:#ebe6f6;
+  --red:#ff3d7f; --red2:#ff69a3; --red-soft:#fff0f6; --red-line:#ffc6dc;
+  --green:#12b886; --green-soft:#e8fbf3; --amber:#f08c00; --amber-soft:#fff7e6;
+  --blue:#5b7cfa; --blue-soft:#eef2ff; --purple:#845ef7; --shadow:0 8px 0 rgba(132,94,247,.08),0 18px 40px rgba(80,50,130,.09);
+  background-color:#faf7ff;
+  background-image:radial-gradient(circle at 12% 18%,rgba(255,105,163,.13) 0 14px,transparent 15px),radial-gradient(circle at 86% 8%,rgba(91,124,250,.12) 0 18px,transparent 19px),radial-gradient(circle at 70% 82%,rgba(18,184,134,.10) 0 16px,transparent 17px),radial-gradient(circle at 28% 70%,rgba(240,140,0,.09) 0 12px,transparent 13px);
+  background-attachment:fixed;
+  font-weight:500;
+}
+body.theme-cartoon .wrap{max-width:1480px}
+body.theme-cartoon header{border-radius:26px;padding:22px 30px;background:linear-gradient(115deg,#ff8ab5 0%,#ff3d7f 40%,#845ef7 100%);box-shadow:0 8px 0 #f6d7e7,0 22px 46px rgba(255,61,127,.22);border:2px solid rgba(255,255,255,.55)}
+body.theme-cartoon header:after{width:320px;height:320px;border-width:44px;border-color:rgba(255,255,255,.10);right:-80px;top:-120px}
+body.theme-cartoon header h1{font-weight:900;letter-spacing:.3px;font-size:25px}
+body.theme-cartoon header p{font-weight:500}
+body.theme-cartoon .hdr-badges span{background:rgba(255,255,255,.22);border-color:rgba(255,255,255,.45);border-radius:99px;font-weight:600}
+body.theme-cartoon .theme-switch{position:absolute;right:20px;top:18px;display:flex;gap:4px;background:rgba(255,255,255,.22);border:1px solid rgba(255,255,255,.4);border-radius:99px;padding:4px;z-index:2}
+body.theme-cartoon .theme-switch button{border:none;background:transparent;color:#fff;font-size:11px;font-weight:700;padding:5px 12px;border-radius:99px;opacity:.85}
+body.theme-cartoon .theme-switch button.on{background:#fff;color:#e0316c;opacity:1;box-shadow:0 2px 6px rgba(0,0,0,.10)}
+body.theme-cartoon .mascot{width:52px;height:52px;flex:none;filter:drop-shadow(0 3px 0 rgba(0,0,0,.10))}
+body.theme-cartoon .card{border:2px solid #fff;border-radius:20px;box-shadow:var(--shadow)}
+body.theme-cartoon .card-h{border-bottom:2px dashed var(--line)}
+body.theme-cartoon .card-h h2{font-weight:800}
+body.theme-cartoon .card-h h2:before{width:8px;height:18px;border-radius:99px;background:linear-gradient(180deg,#ff8ab5,#845ef7)}
+body.theme-cartoon input[type=text],body.theme-cartoon input[type=number],body.theme-cartoon textarea,body.theme-cartoon select{border:2px solid #e9e4f7;border-radius:13px;background:#fff;padding:10px 12px;font-weight:500}
+body.theme-cartoon input[type=text]:focus,body.theme-cartoon input[type=number]:focus,body.theme-cartoon textarea:focus,body.theme-cartoon select:focus{border-color:var(--red);box-shadow:0 0 0 4px rgba(255,61,127,.12)}
+body.theme-cartoon .btn{border:2px solid #e9e4f7;border-radius:99px;padding:8px 16px;box-shadow:0 3px 0 #e9e4f7;font-weight:700}
+body.theme-cartoon .btn:hover{transform:translateY(-2px);border-color:var(--red);box-shadow:0 5px 0 rgba(255,61,127,.25)}
+body.theme-cartoon .btn:active{transform:translateY(2px);box-shadow:none}
+body.theme-cartoon .btn.primary{border-color:#ff3d7f;background:linear-gradient(100deg,#ff3d7f,#ff69a3);box-shadow:0 4px 0 #c91e5b}
+body.theme-cartoon .btn.primary:hover{color:#fff;background:linear-gradient(100deg,#ff2e75,#ff5b9a)}
+body.theme-cartoon .tag{border-radius:99px;font-weight:700;border:1.5px solid var(--red-line)}
+body.theme-cartoon .kpi{border:2px solid #fff;border-radius:20px;box-shadow:var(--shadow)}
+body.theme-cartoon .kpi .v{font-weight:900}
+body.theme-cartoon .kpi .k{font-weight:700}
+body.theme-cartoon .kpi:after{background:var(--red-soft);width:96px;height:96px;right:-24px;bottom:-34px}
+body.theme-cartoon .tabs{background:transparent;border:none;box-shadow:none;padding:0;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+body.theme-cartoon .tab{border:2px solid transparent;border-radius:99px;padding:9px 16px;font-weight:700;color:var(--muted)}
+body.theme-cartoon .tab.on{background:linear-gradient(100deg,#ff3d7f,#845ef7);color:#fff;border-color:#fff;box-shadow:0 4px 0 rgba(132,94,247,.25)}
+body.theme-cartoon .tabpane{border:2px solid #fff;border-radius:20px;box-shadow:var(--shadow);padding:20px}
+body.theme-cartoon .rank-box,body.theme-cartoon .chart-box,body.theme-cartoon .insight,body.theme-cartoon .report,body.theme-cartoon .annot{border:2px solid #f1ecfa;border-radius:16px}
+body.theme-cartoon .rank-box h3{background:#faf5ff}
+body.theme-cartoon th{background:#faf5ff;color:var(--purple);font-weight:800}
+body.theme-cartoon tbody tr:hover{background:#fff5f9}
+body.theme-cartoon .medal-card{border:2px solid #ffe0eb;border-radius:16px;box-shadow:0 4px 0 #ffe9f1}
+body.theme-cartoon .pill.fluff{border-radius:99px;font-weight:700}
+body.theme-cartoon .cmp-row .bar i{background:linear-gradient(90deg,#ff69a3,#845ef7)}
+body.theme-cartoon .notice{border-radius:14px;border:1.5px dashed #ffd591}
+body.theme-cartoon .footer{border:2px dashed #eadff7;border-radius:99px;padding:9px 16px;display:inline-block;background:#fff}
+
+/* ===== 社区广场（两种风格通用）===== */
+.theme-switch{position:absolute;right:20px;top:18px;display:flex;gap:4px;background:rgba(255,255,255,.18);border:1px solid rgba(255,255,255,.35);border-radius:99px;padding:4px;z-index:2}
+.theme-switch button{border:none;background:transparent;color:#fff;font-size:11px;font-weight:700;padding:5px 12px;border-radius:99px;opacity:.8}
+.theme-switch button.on{background:#fff;color:#c8102e;opacity:1;box-shadow:0 2px 6px rgba(0,0,0,.10)}
+.mascot{width:52px;height:52px;flex:none}
+.community-head{display:flex;justify-content:space-between;gap:14px;align-items:flex-end;flex-wrap:wrap;margin-bottom:16px}
+.community-head h2{margin:0;font-size:18px;font-weight:900;color:var(--red);display:flex;align-items:center;gap:8px}
+.community-head .sub{font-size:12px;color:var(--muted);margin-top:3px}
+.publish-box{border:2px dashed var(--red-line);background:var(--red-soft);border-radius:16px;padding:14px 16px;margin-bottom:18px}
+.publish-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.publish-row input{width:auto;flex:1;min-width:160px}
+.publish-row input.short{flex:none;width:120px}
+.share-tools{display:flex;gap:8px;flex-wrap:wrap;margin-top:11px}
+.share-tools .btn{font-size:12px;padding:6px 12px}
+.feed{display:grid;grid-template-columns:repeat(2,1fr);gap:14px}
+.post{border:1px solid var(--line);border-radius:15px;background:#fff;padding:15px 16px;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:9px}
+.post.demo{background:linear-gradient(180deg,#fff,#fffafd)}
+.post-top{display:flex;align-items:center;gap:9px}
+.avatar{width:34px;height:34px;flex:none;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:800;font-size:14px;background:linear-gradient(135deg,#ff69a3,#845ef7)}
+.post-meta{min-width:0;flex:1}
+.post-meta b{display:block;font-size:13px;line-height:1.3}
+.post-meta span{font-size:11px;color:var(--muted)}
+.post h4{margin:2px 0 0;font-size:14px;line-height:1.5}
+.post-stats{display:flex;gap:6px;flex-wrap:wrap}
+.chip{background:#f6f4fb;border-radius:99px;padding:2px 9px;font-size:11px;color:var(--muted);font-weight:600}
+.chip.hot{background:var(--red-soft);color:var(--red)}
+.chip.demo{background:var(--amber-soft);color:var(--amber)}
+.post-bar{height:7px;border-radius:99px;background:#f0edf7;overflow:hidden}
+.post-bar i{display:block;height:100%;background:linear-gradient(90deg,#ff69a3,#845ef7);border-radius:99px}
+.post-actions{display:flex;gap:8px;align-items:center;border-top:1px dashed var(--line);padding-top:9px;margin-top:2px}
+.post-actions button{border:none;background:transparent;color:var(--muted);font-size:12px;font-weight:700;padding:4px 8px;border-radius:8px}
+.post-actions button:hover{background:var(--red-soft);color:var(--red)}
+.post-actions button.liked{color:var(--red);background:var(--red-soft)}
+.comment-area{border-top:1px dashed var(--line);padding-top:9px;display:none}
+.comment-area.open{display:block}
+.comment{font-size:12px;padding:5px 0;border-bottom:1px solid #f6f4fb;line-height:1.6}
+.comment b{color:var(--purple)}
+.comment span{color:var(--muted);font-size:10px;margin-left:6px}
+.comment-form{display:flex;gap:6px;margin-top:8px}
+.comment-form input{min-width:0;font-size:12px;padding:6px 9px}
+.comment-form button{white-space:nowrap;padding:6px 12px;font-size:12px}
+.inbox{border:2px solid var(--red-line);background:var(--red-soft);border-radius:15px;padding:12px 15px;margin-bottom:16px;font-size:12px}
+.inbox b{color:var(--red)}
+.demo-picker{margin-top:14px;padding-top:12px;border-top:1px dashed var(--line)}
+.demo-picker .hint{margin:0 0 7px;font-weight:600;color:var(--muted)}
+.demo-chips{display:flex;gap:7px;flex-wrap:wrap}
+.demo-chip{border:1.5px solid var(--red-line);background:#fff;border-radius:99px;padding:5px 11px;font-size:11px;font-weight:700;color:var(--red);transition:.15s}
+.demo-chip:hover{background:var(--red-soft);transform:translateY(-2px)}
+body.theme-cartoon .demo-chip{border-width:2px;box-shadow:0 3px 0 #ffe0eb}
+@media(max-width:1050px){.feed{grid-template-columns:1fr}}
+</style>
+</head>
+<body class="theme-cartoon">
+<div class="wrap">
+
+<header>
+  <div class="theme-switch no-print">
+    <button id="themeCartoon" class="on">卡通潮酷</button>
+    <button id="themeBusiness">商务经典</button>
+  </div>
+  <h1>
+    <svg class="mascot" viewBox="0 0 64 64" aria-hidden="true">
+      <path d="M12 10h40a8 8 0 0 1 8 8v24a8 8 0 0 1-8 8H32L20 60l2-10h-10a8 8 0 0 1-8-8V18a8 8 0 0 1 8-8z" fill="#fff" stroke="#2b2440" stroke-width="3" stroke-linejoin="round"/>
+      <path d="M32 2l2.5 5 5.5.7-4 4 1 5.5-5-2.8-5 2.8 1-5.5-4-4 5.5-.7z" fill="#ffd93d" stroke="#2b2440" stroke-width="2" stroke-linejoin="round"/>
+      <circle cx="23" cy="29" r="3.4" fill="#2b2440"/><circle cx="41" cy="29" r="3.4" fill="#2b2440"/>
+      <ellipse cx="16" cy="36" rx="4" ry="2.5" fill="#ffb3cd"/><ellipse cx="48" cy="36" rx="4" ry="2.5" fill="#ffb3cd"/>
+      <path d="M24 37q8 8 16 0" fill="none" stroke="#2b2440" stroke-width="3" stroke-linecap="round"/>
+    </svg>
+    <span>会议废话率评估智能体</span>
+  </h1>
+  <p>接入会议纪要 → 逐句判定与议题相关性 → 找出废话之王 / 最长废话 / 最离谱发言，并发布到社区一起吐槽</p>
+  <div class="hdr-badges">
+    <span>本地规则引擎 · 离线可用</span>
+    <span>可选 AI 语义复核</span>
+    <span>社区分享 · 点赞评论</span>
+    <span>支持 TXT / MD / CSV / JSON</span>
+  </div>
+</header>
+
+<div class="grid2 no-print">
+  <section class="card">
+    <div class="card-h"><h2>① 会议配置</h2><span class="status" id="cfgStatus">等待输入</span></div>
+    <div class="card-b">
+      <div class="row">
+        <div><label class="f">会议名称</label><input type="text" id="meetingName" placeholder="例：2026 Q3 电源产品规划评审"></div>
+        <div><label class="f">判定阈值 <b>（0-100，越高越严）</b></label><input type="number" id="threshold" value="50" min="10" max="90" step="1"><div class="hint">相关度低于该值即记为废话，默认 50</div></div>
+      </div>
+      <label class="f">本次会议议题 / 目标 <b>（每行一条，越具体越准）</b></label>
+      <textarea id="topics" rows="5" placeholder="Q3 消费电源出货目标与产能安排&#10;65W 快充物料交期与备货策略&#10;服务器电源 8 周交付承诺风险&#10; charger 温升异常跟进"></textarea>
+      <div class="hint">支持直接写关键词，用逗号/顿号/换行分隔，例如：产能, 物料交期, 客户交付</div>
+      <div class="row" style="margin-top:14px">
+        <div><label class="f">语速（字/分钟，用于估算浪费时长）</label><input type="number" id="wpm" value="280" min="80" max="600"></div>
+        <div><label class="f">已知参会人（选填，辅助识别）</label><input type="text" id="names" placeholder="张伟,李娜,王强,陈明"></div>
+      </div>
+      <div style="margin-top:6px" id="detectedNames"><span class="hint">解析纪要后自动识别发言人</span></div>
+      <div class="demo-picker no-print">
+        <div class="hint">一键体验示例会议（自动载入纪要并评估）</div>
+        <div class="demo-chips" id="demoChips">
+          <button class="demo-chip" data-demo="0">销售复盘 · 高废话</button>
+          <button class="demo-chip" data-demo="1">行政例会 · 低废话</button>
+          <button class="demo-chip" data-demo="2">项目评审 · 跑偏</button>
+          <button class="demo-chip" data-demo="3">客服晨会 · 较聚焦</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <div class="card-h"><h2>② 会议纪要输入</h2><span class="status" id="parseStatus">0 条发言</span></div>
+    <div class="card-b">
+      <textarea id="minutes" rows="13" placeholder="支持以下格式，每行一条发言：&#10;张伟 09:30：大家早上好，今天天气不错……&#10;【李娜】Q3 出货目标 120 万台……&#10;王强（10:32）：那个，我觉得吧……&#10;[10:35] 陈明: 我补充一点……&#10;&#10;也支持 JSON：[{&quot;speaker&quot;:&quot;张伟&quot;,&quot;text&quot;:&quot;...&quot;,&quot;time&quot;:&quot;09:30&quot;}]"></textarea>
+      <div class="actions">
+        <button class="btn" id="btnDemo">载入示例纪要</button>
+        <label class="btn" style="display:inline-block">上传纪要文件<input type="file" id="fileInput" accept=".txt,.md,.csv,.json,.log" hidden></label>
+        <button class="btn ghost" id="btnClear">清空</button>
+        <span class="hint" id="fileHint">或粘贴任意格式的会议纪要文本</span>
+      </div>
+      <div class="ai-panel" id="aiPanel" hidden>
+        <div style="font-weight:700;margin-bottom:10px;color:var(--red)">AI 语义复核（可选，需兼容 OpenAI 的接口）</div>
+        <div class="ai-grid">
+          <div><label class="f">API Base URL</label><input type="text" id="apiBase" value="https://api.openai.com/v1"></div>
+          <div><label class="f">API Key</label><input type="text" id="apiKey" placeholder="sk-..." autocomplete="off"></div>
+          <div><label class="f">模型</label><input type="text" id="apiModel" value="gpt-4o-mini"></div>
+        </div>
+        <div class="hint">仅用于语义复核；勾选后密钥只保留在当前页面内存，不写入文件、不随报告导出。</div>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div class="actions no-print" style="justify-content:center">
+  <label class="switch"><input type="checkbox" id="useAI">启用 AI 语义复核</label>
+  <button class="btn primary" id="btnRun" style="padding:10px 34px;font-size:15px">开始评估（Ctrl+Enter）</button>
+</div>
+
+<section id="result" hidden>
+  <div class="kpis" id="kpis"></div>
+
+  <div class="tabs no-print">
+    <button class="tab on" data-tab="rank">🏆 废话排行榜</button>
+    <button class="tab" data-tab="timeline">📈 时间轴密度</button>
+    <button class="tab" data-tab="detail">📝 逐句明细</button>
+    <button class="tab" data-tab="types">🧩 废话类型</button>
+    <button class="tab" data-tab="annot">✍️ 批注版纪要</button>
+    <button class="tab" data-tab="compare">🗂 多场会议对比</button>
+    <button class="tab" data-tab="community">💬 社区广场</button>
+    <button class="tab" data-tab="report">📄 评估报告</button>
+  </div>
+
+  <div class="tabpane on" id="pane-rank"></div>
+  <div class="tabpane" id="pane-timeline"></div>
+  <div class="tabpane" id="pane-detail"></div>
+  <div class="tabpane" id="pane-types"></div>
+  <div class="tabpane" id="pane-annot"></div>
+  <div class="tabpane" id="pane-compare"></div>
+  <div class="tabpane" id="pane-community"></div>
+  <div class="tabpane" id="pane-report"></div>
+</section>
+
+<div class="footer">会议废话率评估智能体 · 规则模式纯本地运行，不上传任何数据 · 判定结果仅供会议效率复盘参考</div>
+</div>
+
+<script>
+'use strict';
+/* ============ 词库与工具 ============ */
+const FILLERS = ['嗯','呃','啊','那个','这个','就是说','然后呢','怎么说呢','怎么说','我觉得吧','我个人认为','我个人觉得','大家都知道','众所周知','毫无疑问','显而易见','说白了','简单来说','总的来说','反正吧','其实吧','说实话','讲真','不是我说','你懂的','大家都懂','对吧','是吧','好吧','行吧','随便吧','有一点','某种程度上','可以说','从某种意义上说','在这个背景下','我觉得可能','大概也许','可能大概','这个事情呢','这个呢','那个呢','啊这','嗯嗯','好好好','对对对','是是是'];
+const POLITE = ['大家好','早上好','下午好','辛苦了','谢谢大家','感谢各位','感谢领导','谢谢领导','有机会再聊','回头再说','先这样吧','没有问题了','没别的意见','我先介绍一下','我简单说一下','不好意思','打扰一下'];
+const CHITCHAT = ['天气','吃饭','午饭','晚饭','周末','球赛','打球','股票','基金','孩子','放假','节假日','新年好','中秋快乐','过年好','直播','八卦','旅游','购车','买房','咖啡'];
+const SINGLE = new Set(['的','了','和','是','在','有','我','你','他','她','它','们','这','那','不','也','都','就','要','会','能','说','做','看','想','来','去','到','对','从','把','被','让','给','跟','与','及','等','更','最','很','太','再','又','才','还','只','已','未','将','吗','呢','吧','啊','嗯','呃','哦','个','些']);
+const STOP = new Set(['我们','你们','他们','这个','那个','就是','然后','因为','所以','但是','如果','可以','已经','一个','一些','没有','这样','那样','什么','怎么','大家','现在','今天','一下','可能','觉得','其实','还是','不是','只是','东西','事情','情况','方面','进行','通过','对于','关于','以及','或者','并且','而且','另外','最后','首先','其次','我们','你们','他们','自己','一起','这个','那个','问题','时间','时候']);
+const TYPE_COLORS = {'跑题闲聊':'#c8102e','口头禅填充':'#e51937','重复啰嗦':'#f97316','客套寒暄':'#d97706','无信息量':'#7c3aed','无明显废话':'#16a34a'};
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const uniq=a=>[...new Set(a)];
+const fmtMin=n=>n<60?n+' 分钟':(n/60).toFixed(1)+' 小时';
+
+function tokens(text){
+  const map=new Map();
+  const cleaned=String(text).toLowerCase().replace(/[^\u4e00-\u9fa5a-z0-9]+/g,' ');
+  cleaned.split(/\s+/).forEach(seg=>{
+    if(!seg)return;
+    if(/^[a-z0-9]+$/.test(seg)){map.set(seg,(map.get(seg)||0)+2);return;}
+    for(let i=0;i<seg.length-1;i++){
+      const g=seg.slice(i,i+2);
+      if(STOP.has(g)||[...g].some(c=>SINGLE.has(c)))continue;
+      map.set(g,(map.get(g)||0)+1);
+    }
+    for(let i=0;i<seg.length-2;i++){
+      const g=seg.slice(i,i+3);
+      if([...g].some(c=>SINGLE.has(c)))continue;
+      map.set(g,(map.get(g)||0)+1.4);
+    }
+  });
+  return map;
+}
+function jac(a,b){
+  if(!a.size||!b.size)return 0;
+  let inter=0; a.forEach((v,k)=>{if(b.has(k))inter+=Math.min(v,b.get(k));});
+  let union=0; const keys=new Set([...a.keys(),...b.keys()]); keys.forEach(k=>union+=Math.max(a.get(k)||0,b.get(k)||0));
+  return union?inter/union:0;
+}
+function hitCount(text,list){return list.filter(w=>text.includes(w)).length;}
+
+/* ============ 解析纪要 ============ */
+function cleanName(s){return String(s||'').replace(/^[【\[\(（]|[】\]\)）]$/g,'').replace(/(先生|女士|总|经理|主管|博士)$/,'').trim()||'未标注';}
+function parseMinutes(raw,known){
+  const recs=[]; const t0=String(raw||'').trim();
+  if(t0.startsWith('[')||t0.startsWith('{')){
+    try{
+      let arr=JSON.parse(t0); if(!Array.isArray(arr))arr=[arr];
+      arr.forEach(o=>recs.push({speaker:cleanName(o.speaker||o.name||o.speakerName||'未标注'),time:o.time||o.timestamp||'',text:String(o.text||o.content||o.utterance||'')}));
+      if(recs.length)return recs;
+    }catch(e){}
+  }
+  String(raw||'').replace(/\r/g,'').split('\n').forEach(line=>{
+    let t=line.trim(); if(!t)return;
+    if(/^#{1,6}\s/.test(t)||/^[【\[]?(会议纪要|会议主题|会议名称|会议时间|地点|参会人|纪要|摘要)/.test(t))return;
+    let m;
+    if((m=t.match(/^\[?(\d{1,2}:\d{2}(?::\d{2})?)\]?\s*(.{1,24}?)\s*[:：]\s*(.+)$/))){
+      recs.push({speaker:cleanName(m[2]),time:m[1],text:m[3]});return;
+    }
+    if((m=t.match(/^(.{1,24}?)\s*[（(](\d{1,2}:\d{2}(?::\d{2})?)[）)]\s*[:：]\s*(.+)$/))){
+      recs.push({speaker:cleanName(m[1]),time:m[2],text:m[3]});return;
+    }
+    if((m=t.match(/^(.{1,24}?)\s*(\d{1,2}:\d{2}(?::\d{2})?)\s*[:：]\s*(.+)$/))){
+      recs.push({speaker:cleanName(m[1]),time:m[2],text:m[3]});return;
+    }
+    if((m=t.match(/^[【\[]?(.{1,24}?)[】\]]?\s*[:：]\s*(.+)$/))){
+      recs.push({speaker:cleanName(m[1]),time:'',text:m[2]});return;
+    }
+    if(recs.length){recs[recs.length-1].text+=' '+t;}
+    else recs.push({speaker:'未标注发言人',time:'',text:t});
+  });
+  if(known&&known.length){
+    recs.forEach(r=>{if(r.speaker==='未标注'||r.speaker==='未标注发言人'){
+      const hit=known.find(n=>r.text.startsWith(n));
+      if(hit){r.speaker=hit;r.text=r.text.slice(hit.length).replace(/^[:：\s]+/,'');}
+    }});
+  }
+  return recs;
+}
+function splitSentences(text){
+  return String(text||'').replace(/([。！？!?；;])/g,'$1\u0001').split(/[\u0001\n]+/).map(s=>s.trim()).filter(s=>s.length>=2);
+}
+
+/* ============ 规则判定 ============ */
+function buildTopicMap(topics,namesInput){
+  const map=new Map();
+  (namesInput||'').split(/[,，、；;\n\s]+/).filter(Boolean).forEach(k=>map.set(k.toLowerCase(),(map.get(k.toLowerCase())||0)+4));
+  tokens(topics).forEach((w,k)=>map.set(k,(map.get(k)||0)+w));
+  // 显式关键词：短词、英文、数字型术语
+  topics.split(/[,，、；;\n|/]+/).map(s=>s.trim()).filter(s=>s&&s.length<=12).forEach(k=>{
+    map.set(k.toLowerCase(),(map.get(k.toLowerCase())||0)+4);
+  });
+  return map;
+}
+function classify(text,overlap,filler,repeat,info,chitchat){
+  if(repeat>=.55&&overlap<.35)return'重复啰嗦';
+  if(chitchat>0&&overlap<.18)return'跑题闲聊';
+  if(hitCount(text,POLITE)>=1&&overlap<.25)return'客套寒暄';
+  if(filler>=2)return'口头禅填充';
+  if(info===0&&text.length<28)return'无信息量';
+  return'无明显废话';
+}
+function analyzeLocal(data,threshold){
+  const topicMap=buildTopicMap(data.topics,data.keywords);
+  const rows=[]; const seq=[];
+  data.recs.forEach((r,recIdx)=>splitSentences(r.text).forEach(text=>{
+    const st=tokens(text);
+    let mw=0,tw=0;
+    st.forEach((w,g)=>{tw+=w;if(topicMap.has(g))mw+=Math.min(w,topicMap.get(g))*(g.length===3?1.2:1);});
+    const overlap=tw?clamp(mw/tw,0,1):0;
+    const exact=[...topicMap.keys()].filter(k=>k.length>=2&&text.toLowerCase().includes(k)).length;
+    const filler=hitCount(text,FILLERS);
+    const polite=hitCount(text,POLITE);
+    const chitchat=hitCount(text,CHITCHAT);
+    const nums=(text.match(/\d+(?:\.\d+)?%?|[A-Za-z]{2,}/g)||[]).length;
+    const info=Math.min(14,nums*3+Math.max(0,text.length-14)/14);
+    const prev=seq.filter(x=>x.speaker===r.speaker).slice(-12).map(x=>x.tok);
+    const repeat=prev.length?Math.max(...prev.map(p=>jac(st,p))):0;
+    const glob=seq.slice(-25).map(x=>x.tok);
+    const gRep=glob.length?Math.max(...glob.map(p=>jac(st,p))):0;
+    let score=38+overlap*48+Math.min(exact,3)*9+info-filler*7-polite*4-repeat*26-gRep*10;
+    if(text.length<6)score-=10;
+    if(text.length>75&&overlap<.18)score-=9;
+    score=clamp(Math.round(score),0,100);
+    const isFluff=score<threshold||(filler>=3&&overlap===0)||(repeat>=.6&&overlap<.2);
+    const type=isFluff?classify(text,overlap,filler,repeat,info,chitchat):'无明显废话';
+    const absurdity=clamp(Math.round((100-score)*.55+Math.min(text.length/90,1)*18+(repeat>=.55?14:0)+Math.min(filler,4)*4+(chitchat?9:0)+(polite?5:0)),0,100);
+    const reasons=[];
+    reasons.push('议题重合 '+Math.round(overlap*100)+'%');
+    if(exact)reasons.push('命中议题词 '+exact+' 个');
+    if(filler)reasons.push('口头禅 '+filler+' 处');
+    if(polite)reasons.push('客套语 '+polite+' 处');
+    if(repeat>=.35)reasons.push('与本人前文重复 '+Math.round(repeat*100)+'%');
+    if(nums)reasons.push('含实质数据 '+nums+' 处');
+    if(chitchat)reasons.push('闲聊词 '+chitchat+' 处');
+    rows.push({id:rows.length+1,recIdx,speaker:r.speaker,time:r.time,text,len:text.length,score,overlap,filler,polite,chitchat,repeat,info,type,reason:reasons.join(' · '),absurdity,isFluff,ai:null});
+    seq.push({speaker:r.speaker,tok:st});
+  }));
+  return rows;
+}
+
+/* ============ AI 语义复核 ============ */
+async function aiReview(rows,topics,cfg){
+  const base=(cfg.base||'').replace(/\/+$/,'');
+  const payload={model:cfg.model,temperature:0,messages:[
+    {role:'system',content:'你是会议效率分析助手。判断每条发言是否与会议议题相关。返回严格 JSON 数组，元素格式：{"id":1,"related":true,"category":"跑题闲聊","reason":"简短理由","absurdity":42}。category 只能是：跑题闲聊/口头禅填充/重复啰嗦/客套寒暄/无信息量/无明显废话。不要输出任何多余文字。'},
+    {role:'user',content:'会议议题：\n'+topics+'\n\n逐条发言（JSON）：\n'+JSON.stringify(rows.map(r=>({id:r.id,speaker:r.speaker,text:r.text}))) }
+  ]};
+  const res=await fetch(base+'/chat/completions',{method:'POST',headers:{'Content-Type':'application/json','Authorization':'Bearer '+cfg.key},body:JSON.stringify(payload)});
+  if(!res.ok)throw new Error('HTTP '+res.status+' '+String(await res.text()).slice(0,160));
+  const j=await res.json(); let txt=(j.choices&&j.choices[0]&&j.choices[0].message&&j.choices[0].message.content)||'';
+  txt=String(txt).trim().replace(/^```(?:json)?/i,'').replace(/```$/,'');
+  const s=txt.indexOf('['),e=txt.lastIndexOf(']');
+  if(s<0||e<0)throw new Error('AI 返回内容无法解析为 JSON 数组');
+  const arr=JSON.parse(txt.slice(s,e+1));
+  arr.forEach(a=>{
+    const row=rows.find(r=>r.id===Number(a.id)); if(!row)return;
+    row.ai={related:!!a.related,reason:String(a.reason||''),category:String(a.category||'无明显废话'),absurdity:clamp(Number(a.absurdity)||0,0,100)};
+    row.isFluff=!row.ai.related;
+    row.type=row.isFluff?(TYPE_COLORS[a.category]?a.category:'无信息量'):'无明显废话';
+    row.absurdity=row.ai.absurdity;
+    row.reason='AI：'+row.ai.reason;
+  });
+  return arr.length;
+}
+
+/* ============ 统计 ============ */
+function statsOf(rows,sp){
+  const all=rows.filter(r=>r.speaker===sp), fl=all.filter(r=>r.isFluff);
+  return {
+    speaker:sp, total:all.length, fluff:fl.length,
+    rate:all.length?fl.length/all.length:0,
+    chars:fl.reduce((s,r)=>s+r.len,0),
+    longest:fl.length?Math.max(...fl.map(r=>r.len)):0,
+    longestText:fl.length?(fl.find(r=>r.len===Math.max(...fl.map(r=>r.len)))||{}).text||'':'',
+    maxAbs:fl.length?Math.max(...fl.map(r=>r.absurdity)):0,
+    avgAbs:fl.length?fl.reduce((s,r)=>s+r.absurdity,0)/fl.length:0
+  };
+}
+let CURRENT=null;
+
+function render(){
+  const d=CURRENT, rows=d.rows;
+  const speakers=uniq(rows.map(r=>r.speaker));
+  const stats=speakers.map(s=>statsOf(rows,s));
+  const fluff=rows.filter(r=>r.isFluff);
+  const rate=rows.length?fluff.length/rows.length:0;
+  const wpm=Number(document.getElementById('wpm').value)||280;
+  const wasted=Math.round(fluff.reduce((s,r)=>s+r.len,0)/wpm);
+  const topMost=[...stats].sort((a,b)=>b.fluff-a.fluff)[0];
+  const topLong=[...stats].sort((a,b)=>b.chars-a.chars)[0];
+  const topAbs=[...stats].sort((a,b)=>b.maxAbs-a.maxAbs)[0];
+  const topRate=[...stats].filter(s=>s.total>=3).sort((a,b)=>b.rate-a.rate)[0]||topMost;
+  const oneFluff=fluff.find(r=>r.text===topAbs.longestText&&r.speaker===topAbs.speaker)||fluff.find(r=>r.speaker===topAbs.speaker&&r.absurdity===topAbs.maxAbs);
+
+  /* KPI */
+  document.getElementById('kpis').innerHTML=[
+    `<div class="kpi"><div class="k">总发言句数</div><div class="v">${rows.length}<small> 句</small></div><div class="s">${speakers.length} 位发言人 · ${d.recs.length} 条发言记录</div></div>`,
+    `<div class="kpi hot"><div class="k">废话句数</div><div class="v">${fluff.length}<small> 句</small></div><div class="s">判定阈值 ${d.threshold} 分</div></div>`,
+    `<div class="kpi hot"><div class="k">会议废话率</div><div class="v">${(rate*100).toFixed(1)}<small> %</small></div><div class="bar"><i style="width:${clamp(rate*100,0,100)}%"></i></div></div>`,
+    `<div class="kpi"><div class="k">估算浪费时长</div><div class="v">${wasted}<small> 分钟</small></div><div class="s">按 ${wpm} 字/分钟 · 废话 ${fluff.reduce((s,r)=>s+r.len,0)} 字</div></div>`,
+    `<div class="kpi hot"><div class="k">最离谱发言</div><div class="v" style="font-size:19px">${esc(oneFluff?oneFluff.speaker:'—')}</div><div class="s">${oneFluff?'离谱指数 '+oneFluff.absurdity+' · '+esc(oneFluff.text.slice(0,26))+'…':'无废话记录'}</div></div>`
+  ].join('');
+
+  /* Ranking */
+  const medal=(cls,icon,t,s,extra)=>`<div class="medal-card"><div class="who"><i>${icon}</i>${esc(s.speaker)}</div><div class="metric">${t}：<b>${extra}</b></div><div class="bar"><i style="width:${clamp(s.rate*100,0,100)}%"></i></div><div class="metric">废话率 ${(s.rate*100).toFixed(1)}% · 共 ${s.total} 句</div></div>`;
+  const table=(title,hint,head,body)=>`<div class="rank-box"><h3>${title}<span>${hint}</span></h3><table><thead><tr><th>#</th>${head.map(h=>`<th>${h}</th>`).join('')}</tr></thead><tbody>${body}</tbody></table></div>`;
+  const rk=(i)=>`<span class="rk ${i<3?'top':''}">${i+1}</span>`;
+  const byMost=[...stats].sort((a,b)=>b.fluff-a.fluff||b.rate-a.rate);
+  const byLong=[...stats].sort((a,b)=>b.chars-a.chars);
+  const byAbs=[...stats].sort((a,b)=>b.maxAbs-a.maxAbs||b.avgAbs-a.avgAbs);
+  const byRate=[...stats].sort((a,b)=>b.rate-a.rate||b.total-a.total);
+  document.getElementById('pane-rank').innerHTML=`
+    <div class="medal">
+      ${medal('','👑','废话最多',topMost,topMost.fluff+' 句')}
+      ${medal('','📏','废话最长',topLong,topLong.chars+' 字')}
+      ${medal('','🤯','废话最离谱',topAbs,'指数 '+topAbs.maxAbs)}
+      ${medal('','📈','废话率最高',topRate,(topRate.rate*100).toFixed(1)+'%')}
+    </div>
+    <div class="rank-grid">
+      ${table('废话最多（句数）','按绝对数量',['发言人','废话句','总句','废话率'],byMost.map((s,i)=>`<tr><td>${rk(i)}</td><td><b>${esc(s.speaker)}</b></td><td style="color:var(--red);font-weight:700">${s.fluff}</td><td>${s.total}</td><td>${(s.rate*100).toFixed(1)}%</td></tr>`).join(''))}
+      ${table('废话最长（累计字数）','含最长单句',['发言人','累计字','最长单句','示例'],byLong.map((s,i)=>`<tr><td>${rk(i)}</td><td><b>${esc(s.speaker)}</b></td><td style="color:var(--red);font-weight:700">${s.chars}</td><td>${s.longest} 字</td><td class="reason" title="${esc(s.longestText)}">${esc(s.longestText.slice(0,24))}${s.longestText.length>24?'…':''}</td></tr>`).join(''))}
+      ${table('废话最离谱（离谱指数）','0-100，越高越离谱',['发言人','最高','平均','典型发言'],byAbs.map((s,i)=>`<tr><td>${rk(i)}</td><td><b>${esc(s.speaker)}</b></td><td style="color:var(--red);font-weight:700">${s.maxAbs}</td><td>${s.avgAbs.toFixed(0)}</td><td class="reason" title="${esc(s.longestText)}">${esc(s.longestText.slice(0,24))}${s.longestText.length>24?'…':''}</td></tr>`).join(''))}
+      ${table('废话率最高（占比）','发言≥3句者参与',['发言人','废话率','废话/总句','类型分布'],byRate.map((s,i)=>`<tr><td>${rk(i)}</td><td><b>${esc(s.speaker)}</b></td><td style="color:var(--red);font-weight:700">${(s.rate*100).toFixed(1)}%</td><td>${s.fluff}/${s.total}</td><td class="reason">${uniq(rows.filter(r=>r.speaker===s.speaker&&r.isFluff).map(r=>r.type)).join('、')||'—'}</td></tr>`).join(''))}
+    </div>`;
+
+  /* Detail */
+  const oldSp=(document.getElementById('fSpeaker')||{}).value||'';
+  const oldTy=(document.getElementById('fType')||{}).value||'';
+  document.getElementById('pane-detail').innerHTML=`
+    <div class="filters no-print">
+      <select id="fSpeaker"><option value="">全部发言人</option>${speakers.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}</select>
+      <select id="fType"><option value="">全部类型</option>${Object.keys(TYPE_COLORS).map(s=>`<option value="${s}">${s}</option>`).join('')}</select>
+      <input type="text" id="fSearch" placeholder="搜索句子关键词">
+      <label class="switch"><input type="checkbox" id="fOnlyFluff" checked> 只看废话</label>
+      <button class="btn" id="btnExportCsv">导出明细 CSV</button>
+      <span class="status" id="detailCount"></span>
+    </div>
+    <div style="overflow:auto;max-height:620px"><table id="detailTable"><thead><tr><th>#</th><th>时间</th><th>发言人</th><th>原句</th><th>相关度</th><th>类型</th><th>字数</th><th>判定依据</th></tr></thead><tbody></tbody></table></div>`;
+  document.getElementById('fSpeaker').value=oldSp;document.getElementById('fType').value=oldTy;
+  ['fSpeaker','fType','fSearch','fOnlyFluff'].forEach(id=>document.getElementById(id).addEventListener('change',drawDetail));
+  document.getElementById('fSearch').addEventListener('input',drawDetail);
+  document.getElementById('btnExportCsv').addEventListener('click',exportCsv);
+  drawDetail();
+
+  /* Types */
+  const typeCount={};fluff.forEach(r=>typeCount[r.type]=(typeCount[r.type]||0)+1);
+  const entries=Object.entries(typeCount).sort((a,b)=>b[1]-a[1]);
+  let acc=0;const segs=entries.map(([k,v])=>{const a=acc/countSum(entries)*360,b=(acc+v)/countSum(entries)*360;acc+=v;return `${TYPE_COLORS[k]||'#999'} ${a}deg ${b}deg`;});
+  const donutBg=segs.length?`conic-gradient(${segs.join(',')})`:'#f0f1f3';
+  document.getElementById('pane-types').innerHTML=`
+    <div class="type-grid">
+      <div class="donut-wrap">
+        <div class="donut" style="background:${donutBg}"><div class="center"><b>${fluff.length}</b><span>句废话</span></div></div>
+        <div class="legend">${entries.map(([k,v])=>`<div><i style="background:${TYPE_COLORS[k]||'#999'}"></i><span>${k}</span><b>${v} 句 · ${(v/fluff.length*100).toFixed(0)}%</b></div>`).join('')||'<div class="hint">暂无废话记录</div>'}</div>
+      </div>
+      <div class="type-list">
+        ${entries.map(([k,v])=>{
+          const ex=fluff.filter(r=>r.type===k).sort((a,b)=>b.absurdity-a.absurdity)[0];
+          return `<div class="tl"><div class="top"><b>${k}</b><span>${v} 句 / ${(v/fluff.length*100).toFixed(1)}%</span></div><div class="bar"><i style="width:${v/fluff.length*100}%;background:${TYPE_COLORS[k]||'#999'}"></i></div><div class="ex">最典型：${esc(ex?ex.text.slice(0,90):'')}</div></div>`;
+        }).join('')||'<div class="hint">本次会议未发现明显废话，恭喜。</div>'}
+        <div class="notice">判定说明：规则模式基于「议题关键词重合度 + 口头禅命中 + 重复度 + 信息密度 + 闲聊词」综合打分；AI 模式会再对每句做一次语义复核并覆盖规则判定。两者都只是辅助复盘工具，请勿作为个人绩效评价的唯一依据。</div>
+      </div>
+    </div>`;
+
+  /* 时间轴 / 批注版 / 多场对比 */
+  renderTimeline(d);
+  renderAnnotated(d);
+  renderCompare();
+  renderCommunity();
+
+  /* Report */
+  const problems=entries.map(([k,v])=>`<li>${k}：${v} 句（${(v/fluff.length*100).toFixed(0)}%）</li>`).join('');
+  const suggestions=[];
+  if(rate>.3)suggestions.push('废话率超过 30%，建议会前明确议题清单并指定主持人控场。');
+  if(byLong[0]&&byLong[0].chars>200)suggestions.push('建议对长篇发言设置 1-2 分钟限时，要求先说结论再补论据。');
+  if(typeCount['重复啰嗦']>0)suggestions.push('存在重复表述，建议在纪要里直接合并同类项，减少复读。');
+  if(typeCount['跑题闲聊']>0)suggestions.push('出现跑题闲聊，建议设置「停车场」环节，把无关话题移到会后。');
+  if(!suggestions.length)suggestions.push('本次会议聚焦度较好，可保持现有议程管理方式。');
+  document.getElementById('pane-report').innerHTML=`
+    <div class="report">
+      <h3>${esc(d.name||'未命名会议')} · 废话率评估报告</h3>
+      <p>评估时间：${new Date().toLocaleString('zh-CN')} · 判定模式：${d.mode} · 判定阈值：${d.threshold} 分</p>
+      <h4>一、总体结论</h4>
+      <p>本次会议共识别 <b>${rows.length}</b> 句发言，其中与议题无关或低信息量的「废话」<b>${fluff.length}</b> 句，会议废话率 <b style="color:var(--red)">${(rate*100).toFixed(1)}%</b>；按 ${wpm} 字/分钟估算，可压缩时长约 <b>${wasted}</b> 分钟。</p>
+      <h4>二、会议议题</h4><ul>${d.topics.split(/[\n,，、；;|]+/).filter(Boolean).map(t=>`<li>${esc(t.trim())}</li>`).join('')}</ul>
+      <h4>三、个人表现排行</h4>
+      <table><thead><tr><th>发言人</th><th>废话最多</th><th>累计字数</th><th>废话率</th><th>最高离谱指数</th></tr></thead><tbody>
+      ${byMost.map(s=>`<tr><td>${esc(s.speaker)}</td><td>${s.fluff} 句</td><td>${s.chars} 字</td><td>${(s.rate*100).toFixed(1)}%</td><td>${s.maxAbs}</td></tr>`).join('')}
+      </tbody></table>
+      <h4>四、废话类型分布</h4><ul>${problems||'<li>无</li>'}</ul>
+      <h4>五、最离谱的三句</h4><ol>${[...fluff].sort((a,b)=>b.absurdity-a.absurdity).slice(0,3).map(r=>`<li>「${esc(r.text)}」 —— ${esc(r.speaker)}，离谱指数 ${r.absurdity}，${esc(r.reason)}</li>`).join('')||'<li>无</li>'}</ol>
+      <h4>六、改进建议</h4><ul>${suggestions.map(s=>`<li>${s}</li>`).join('')}</ul>
+    </div>
+    <div class="actions"><button class="btn primary no-print" id="btnExportReport">导出报告 HTML</button><button class="btn no-print" id="btnPrint">打印 / 存为 PDF</button><button class="btn no-print" id="btnArchive" style="border-color:var(--red);color:var(--red)">存入对比档案库</button><button class="btn no-print" id="btnPublish" style="border-color:var(--purple);color:var(--purple)">发布到社区</button><span class="status" id="exportHint"></span></div>`;
+  document.getElementById('btnExportReport').addEventListener('click',exportReport);
+  document.getElementById('btnPrint').addEventListener('click',()=>window.print());
+  document.getElementById('btnArchive').addEventListener('click',()=>{
+    try{archiveCurrent();document.getElementById('exportHint').textContent='已存入档案库，可到「多场会议对比」查看';renderCompare();}
+    catch(e){document.getElementById('exportHint').textContent='存档失败：'+e.message;}
+  });
+  document.getElementById('btnPublish').addEventListener('click',()=>{
+    try{publishCurrent();document.getElementById('exportHint').textContent='已发布到社区广场';document.querySelector('[data-tab=community]').click();}
+    catch(e){document.getElementById('exportHint').textContent='发布失败：'+e.message;}
+  });
+}
+
+/* ============ 时间轴密度曲线 ============ */
+function parseClock(t){
+  const m=String(t||'').match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  return m?Number(m[1])*60+Number(m[2])+(m[3]?Number(m[3])/60:0):null;
+}
+function timeSeries(rows,n,speaker){
+  const list=rows.filter(r=>!speaker||r.speaker===speaker);
+  const times=list.map(r=>parseClock(r.time)).filter(x=>x!==null);
+  const useTime=times.length>=2&&times.length>=list.length*.4;
+  const min=useTime?Math.min(...times):0,max=useTime?Math.max(...times):Math.max(0,list.length-1);
+  const buckets=Array.from({length:n},()=>({total:0,fluff:0,chars:0}));
+  list.forEach((r,i)=>{
+    const v=useTime?parseClock(r.time):i;
+    if(v===null)return;
+    const idx=clamp(Math.floor((v-min)/((max-min)||1)*n),0,n-1);
+    buckets[idx].total++;buckets[idx].chars+=r.len;if(r.isFluff)buckets[idx].fluff++;
+  });
+  const labels=buckets.map((_,i)=>{
+    if(!useTime)return '第 '+(i+1)+' 段';
+    const a=min+(max-min)*i/n;
+    const f=x=>String(Math.floor(x/60)).padStart(2,'0')+':'+String(Math.floor(x%60)).padStart(2,'0');
+    return f(a);
+  });
+  const full=buckets.map((_,i)=>{
+    if(!useTime)return labels[i];
+    const a=min+(max-min)*i/n,b=min+(max-min)*(i+1)/n;
+    const f=x=>String(Math.floor(x/60)).padStart(2,'0')+':'+String(Math.floor(x%60)).padStart(2,'0');
+    return f(a)+' - '+f(b);
+  });
+  return {buckets,labels,full,useTime,count:list.length};
+}
+function densitySvg(series){
+  const W=900,H=300,L=48,R=48,T=22,B=52,pw=W-L-R,ph=H-T-B,n=series.buckets.length;
+  const maxTotal=Math.max(1,...series.buckets.map(b=>b.total));
+  const bw=pw/n,grid=[0,.25,.5,.75,1].map(p=>{
+    const y=T+ph-p*ph;
+    return `<line x1="${L}" y1="${y}" x2="${L+pw}" y2="${y}" stroke="#eceef1"/><text x="${L+pw+8}" y="${y+4}" font-size="10" fill="#9ca3af">${p*100}%</text>`;
+  }).join('');
+  const bars=series.buckets.map((b,i)=>{
+    const x=L+i*bw+bw*.22,w=bw*.56;
+    const hT=b.total/maxTotal*ph,hF=b.total?b.fluff/maxTotal*ph:0;
+    const yT=T+ph-hT,yF=T+ph-hF, dens=b.total?b.fluff/b.total:0;
+    return `<g><rect x="${x}" y="${yT}" width="${w}" height="${hT}" rx="3" fill="#dbeafe"><title>${esc(series.full[i])}：发言 ${b.total} 句</title></rect>
+      <rect x="${x+w*.2}" y="${yF}" width="${w*.6}" height="${hF}" rx="3" fill="#f4a6b3"><title>${esc(series.full[i])}：废话 ${b.fluff} 句 / ${b.total} 句</title></rect>
+      <circle cx="${L+i*bw+bw/2}" cy="${T+ph-dens*ph}" r="4" fill="#c8102e" stroke="#fff" stroke-width="1.5"><title>${esc(series.full[i])}：废话密度 ${(dens*100).toFixed(0)}%</title></circle>
+      <text x="${L+i*bw+bw/2}" y="${T+ph+20}" text-anchor="middle" font-size="10" fill="#6b7280">${esc(series.labels[i])}</text></g>`;
+  }).join('');
+  const pts=series.buckets.map((b,i)=>`${L+i*bw+bw/2},${T+ph-(b.total?b.fluff/b.total:0)*ph}`).join(' ');
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="会议废话密度时间轴">
+    <line x1="${L}" y1="${T+ph}" x2="${L+pw}" y2="${T+ph}" stroke="#d6d9de"/>
+    ${grid}<polyline points="${pts}" fill="none" stroke="#c8102e" stroke-width="2.5" stroke-linejoin="round"/>${bars}
+    <text x="${L}" y="14" font-size="10" fill="#6b7280">发言句数（柱）</text>
+    <text x="${L+pw+8}" y="14" font-size="10" fill="#c8102e">废话密度</text>
+  </svg>`;
+}
+function renderTimeline(d){
+  const pane=document.getElementById('pane-timeline');if(!pane)return;
+  const old=(document.getElementById('tlSpeaker')||{}).value||'';
+  const speakers=uniq(d.rows.map(r=>r.speaker));
+  const series=timeSeries(d.rows,10,old);
+  const active=series.buckets.map((b,i)=>({...b,i,dens:b.total?b.fluff/b.total:0})).filter(b=>b.total);
+  const peak=active.length?[...active].sort((a,b)=>b.dens-a.dens||b.total-a.total)[0]:null;
+  const avg=series.count?series.buckets.reduce((s,b)=>s+b.fluff,0)/series.count:0;
+  const half=Math.floor(series.buckets.length/2);
+  const sum=x=>x.reduce((s,b)=>s+b.fluff,0),tot=x=>x.reduce((s,b)=>s+b.total,0);
+  const h1=tot(series.buckets.slice(0,half))?sum(series.buckets.slice(0,half))/tot(series.buckets.slice(0,half)):0;
+  const h2=tot(series.buckets.slice(half))?sum(series.buckets.slice(half))/tot(series.buckets.slice(half)):0;
+  pane.innerHTML=`
+    <div class="chart-head">
+      <div><b style="font-size:14px">废话密度随时间变化</b><div class="hint">${series.useTime?'按纪要中的时间戳分桶（每 10 段）':'纪要无时间戳，按发言顺序等分为 10 段'}</div></div>
+      <div style="display:flex;gap:10px;align-items:center">
+        <select id="tlSpeaker" style="width:auto;min-width:130px"><option value="">全部发言人</option>${speakers.map(s=>`<option value="${esc(s)}">${esc(s)}</option>`).join('')}</select>
+        <div class="chart-legend"><span><i style="background:#dbeafe"></i>发言量</span><span><i style="background:#f4a6b3"></i>废话量</span><span><i style="background:#c8102e"></i>废话密度</span></div>
+      </div>
+    </div>
+    <div class="chart-box">${densitySvg(series)}</div>
+    <div class="insights">
+      <div class="insight"><div class="k">废话高峰时段</div><div class="v">${peak?(peak.dens*100).toFixed(0)+'%':'—'}</div><div class="s">${peak?esc(series.full[peak.i])+' · '+peak.fluff+'/'+peak.total+' 句':'暂无数据'}</div></div>
+      <div class="insight"><div class="k">整体平均密度</div><div class="v">${(avg*100).toFixed(1)}%</div><div class="s">统计 ${series.count} 句发言</div></div>
+      <div class="insight"><div class="k">前/后半场对比</div><div class="v">${(h1*100).toFixed(0)}% → ${(h2*100).toFixed(0)}%</div><div class="s">${h2>h1+.05?'后半场明显跑偏，建议中途收口议题':h1>h2+.05?'前半场废话较多，建议会前铺垫材料':'前后半场聚焦度基本稳定'}</div></div>
+    </div>`;
+  document.getElementById('tlSpeaker').value=old;
+  document.getElementById('tlSpeaker').addEventListener('change',()=>renderTimeline(CURRENT));
+}
+
+/* ============ 批注版纪要 ============ */
+function annotatedData(only){
+  const d=CURRENT,byRec={};
+  d.rows.forEach(r=>{(byRec[r.recIdx]=byRec[r.recIdx]||[]).push(r);});
+  const html=[],plain=[];
+  d.recs.forEach((rec,i)=>{
+    const rs=(byRec[i]||[]).filter(r=>!only||r.isFluff);
+    if(!rs.length)return;
+    const head=(rec.time?'['+rec.time+'] ':'')+rec.speaker+'：';
+    const parts=rs.map(r=>{
+      const tag='【废话·指数'+r.absurdity+'·'+r.type+'】';
+      return {text:r.text,tag,fluff:r.isFluff,reason:r.reason};
+    });
+    plain.push(head+parts.map(p=>p.text+(p.fluff?p.tag:'')).join(''));
+    html.push(`<div class="annot-rec"><div class="annot-time">${esc(rec.time||'—')}</div><div class="annot-who">${esc(rec.speaker)}</div><div class="annot-text">${parts.map(p=>p.fluff?`<span class="mark-fluff" title="${esc(p.reason)}">${esc(p.text)}<sup class="mark-note">废话 · ${p.absurdity} · ${esc(p.type)}</sup></span>`:`<span class="normal">${esc(p.text)}</span>`).join('')}</div></div>`);
+  });
+  return {html:html.join(''),plain:plain.join('\n')};
+}
+function mdAnnotated(only){
+  const d=CURRENT,byRec={};
+  d.rows.forEach(r=>{(byRec[r.recIdx]=byRec[r.recIdx]||[]).push(r);});
+  const out=['# '+d.name+' · 批注版纪要','', '> 红色标注为判定为废话的句子；指数 0-100，越高越离谱。',''];
+  d.recs.forEach((rec,i)=>{
+    const rs=(byRec[i]||[]).filter(r=>!only||r.isFluff);
+    if(!rs.length)return;
+    out.push('**'+((rec.time?rec.time+' ':'')+rec.speaker)+'**：'+rs.map(r=>r.isFluff?r.text+' **[废话·'+r.absurdity+'·'+r.type+']**':r.text).join(''));
+    out.push('');
+  });
+  return out.join('\n');
+}
+function copyText(txt,statusId){
+  const done=()=>{const el=document.getElementById(statusId);if(el)el.textContent='已复制到剪贴板';};
+  if(navigator.clipboard&&window.isSecureContext){navigator.clipboard.writeText(txt).then(done,fallback);}else fallback();
+  function fallback(){
+    const ta=document.createElement('textarea');ta.value=txt;ta.style.position='fixed';ta.style.opacity='0';document.body.appendChild(ta);ta.select();
+    try{document.execCommand('copy');done();}catch(e){const el=document.getElementById(statusId);if(el)el.textContent='复制失败，请手动选择文本';}
+    document.body.removeChild(ta);
+  }
+}
+function renderAnnotated(d){
+  const pane=document.getElementById('pane-annot');if(!pane)return;
+  const only=(document.getElementById('annotOnly')||{}).checked||false;
+  const a=annotatedData(only);
+  const n=d.rows.filter(r=>r.isFluff).length;
+  pane.innerHTML=`
+    <div class="annot-tools">
+      <b style="font-size:14px">批注版纪要</b>
+      <span class="status">共标记 ${n} 句废话</span>
+      <label class="switch"><input type="checkbox" id="annotOnly" ${only?'checked':''}> 只显示废话句</label>
+      <button class="btn no-print" id="btnCopyAnnot">复制全文</button>
+      <button class="btn no-print" id="btnMdAnnot">导出 Markdown</button>
+      <button class="btn no-print" id="btnHtmlAnnot">导出带批注 HTML</button>
+      <span class="status" id="annotStatus"></span>
+    </div>
+    <div class="annot">${a.html||'<div class="empty">当前筛选下没有可显示的发言</div>'}</div>`;
+  document.getElementById('annotOnly').addEventListener('change',()=>renderAnnotated(CURRENT));
+  document.getElementById('btnCopyAnnot').addEventListener('click',()=>copyText(a.plain,'annotStatus'));
+  document.getElementById('btnMdAnnot').addEventListener('click',()=>{download(d.name+'_批注版纪要.md','\ufeff'+mdAnnotated(only),'text/markdown;charset=utf-8');document.getElementById('annotStatus').textContent='已导出 Markdown';});
+  document.getElementById('btnHtmlAnnot').addEventListener('click',()=>{
+    const css='body{font-family:"Microsoft YaHei",sans-serif;max-width:960px;margin:40px auto;padding:0 20px;color:#1f2329}.annot-rec{display:grid;grid-template-columns:74px 78px 1fr;gap:10px;padding:10px 0;border-bottom:1px dashed #e8eaed}.annot-time{font-size:11px;color:#6b7280}.annot-who{font-weight:700}.annot-text{line-height:2}.mark-fluff{background:#fff1f2;border-bottom:2px solid #f4a6b3;padding:1px 2px}.mark-note{font-size:10px;color:#fff;background:#c8102e;border-radius:4px;padding:1px 5px;margin-left:5px}';
+    download(d.name+'_批注版纪要.html','<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>'+esc(d.name)+' · 批注版纪要</title><style>'+css+'</style></head><body><h2>'+esc(d.name)+' · 批注版纪要</h2>'+a.html+'</body></html>','text/html;charset=utf-8');
+    document.getElementById('annotStatus').textContent='已导出 HTML';
+  });
+}
+
+/* ============ 多场会议对比（本地档案库） ============ */
+const ARCHIVE_KEY='meetingFluffArchive_v1';
+const CMP_COLORS=['#c8102e','#2563eb','#d97706','#7c3aed','#0891b2','#65a30d'];
+function getArchive(){try{const a=JSON.parse(localStorage.getItem(ARCHIVE_KEY)||'[]');return Array.isArray(a)?a:[]}catch(e){return[]}}
+function setArchive(a){try{localStorage.setItem(ARCHIVE_KEY,JSON.stringify(a));}catch(e){throw new Error('浏览器本地存储不可用（隐私模式或空间不足）')}}
+function buildSnapshot(){
+  const d=CURRENT,fl=d.rows.filter(r=>r.isFluff);
+  const speakers=uniq(d.rows.map(r=>r.speaker));
+  const sts=speakers.map(s=>statsOf(d.rows,s));
+  const wpm=Number(document.getElementById('wpm').value)||280;
+  const most=[...sts].sort((a,b)=>b.fluff-a.fluff)[0];
+  return {id:'m'+Date.now(),name:d.name||'未命名会议',date:new Date().toLocaleString('zh-CN',{hour12:false}),
+    total:d.rows.length,fluff:fl.length,rate:d.rows.length?fl.length/d.rows.length:0,
+    wasted:Math.round(fl.reduce((s,r)=>s+r.len,0)/wpm),chars:fl.reduce((s,r)=>s+r.len,0),
+    most:most?most.speaker:'—',mostN:most?most.fluff:0,threshold:d.threshold,mode:d.mode,
+    series:timeSeries(d.rows,10).buckets.map(b=>({t:b.total,f:b.fluff}))};
+}
+function archiveCurrent(){
+  const a=getArchive();a.push(buildSnapshot());setArchive(a.slice(-30));
+}
+function overlaySvg(list){
+  const W=900,H=250,L=48,R=20,T=18,B=40,pw=W-L-R,ph=H-T-B,n=10;
+  const grid=[0,.25,.5,.75,1].map(p=>{const y=T+ph-p*ph;return `<line x1="${L}" y1="${y}" x2="${L+pw}" y2="${y}" stroke="#eceef1"/><text x="${L-8}" y="${y+4}" text-anchor="end" font-size="10" fill="#9ca3af">${p*100}%</text>`}).join('');
+  const lines=list.map((m,i)=>{
+    const pts=m.series.map((b,j)=>`${L+j*(pw/(n-1))},${T+ph-(b.t?b.f/b.t:0)*ph}`).join(' ');
+    return `<polyline points="${pts}" fill="none" stroke="${CMP_COLORS[i%6]}" stroke-width="2.4" stroke-linejoin="round"><title>${esc(m.name)}</title></polyline>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="多场会议废话密度叠加曲线">${grid}${lines}
+    ${Array.from({length:n},(_,j)=>`<text x="${L+j*(pw/(n-1))}" y="${T+ph+20}" text-anchor="middle" font-size="10" fill="#6b7280">${j+1}</text>`).join('')}
+    <text x="${L}" y="12" font-size="10" fill="#6b7280">会议进程（等分 10 段）</text></svg>`;
+}
+function renderCompare(){
+  const pane=document.getElementById('pane-compare');if(!pane)return;
+  const arc=getArchive();
+  if(!arc.length){pane.innerHTML='<div class="empty">档案库为空。到「评估报告」页点击「存入对比档案库」，即可积累多场会议做横向对比（数据仅保存在本机浏览器）。</div>';return;}
+  const sorted=[...arc].reverse();
+  const best=[...arc].sort((a,b)=>a.rate-b.rate)[0];
+  pane.innerHTML=`
+    <div class="chart-head">
+      <div><b style="font-size:14px">已归档 ${arc.length} 场会议</b><div class="hint">数据保存在本机浏览器 localStorage，不上传；最多保留最近 30 场。</div></div>
+      <div class="actions" style="margin:0"><button class="btn no-print" id="btnSaveCurrent">保存当前会议</button><button class="btn no-print" id="btnCmpCsv">导出对比 CSV</button><button class="btn ghost no-print" id="btnClearArc">清空档案</button><span class="status" id="cmpStatus"></span></div>
+    </div>
+    <table class="cmp-table"><thead><tr><th>会议名称</th><th>评估时间</th><th>总句</th><th>废话句</th><th>废话率</th><th>浪费分钟</th><th>废话最多</th><th>操作</th></tr></thead><tbody>
+      ${sorted.map(m=>`<tr class="${m.id===best.id?'cmp-best':''}"><td><b>${esc(m.name)}</b>${m.id===best.id?' <span class="pill ok">最佳</span>':''}</td><td class="reason">${esc(m.date)}</td><td>${m.total}</td><td style="color:var(--red);font-weight:700">${m.fluff}</td><td><b>${(m.rate*100).toFixed(1)}%</b></td><td>${m.wasted}</td><td>${esc(m.most)}（${m.mostN}）</td><td><button class="btn ghost" data-del="${m.id}" style="padding:3px 8px;font-size:11px">删除</button></td></tr>`).join('')}
+    </tbody></table>
+    <div class="cmp-bars">${sorted.map(m=>`<div class="cmp-row"><span title="${esc(m.name)}">${esc(m.name.slice(0,14))}${m.name.length>14?'…':''}</span><div class="bar"><i style="width:${clamp(m.rate*100,0,100)}%"></i></div><b>${(m.rate*100).toFixed(0)}%</b></div>`).join('')}</div>
+    <div style="margin-top:22px"><b style="font-size:14px">密度曲线叠加对比</b><div class="hint">横轴为会议进程（等分 10 段），纵轴为该段废话密度</div>
+      <div class="chart-box">${overlaySvg(sorted.slice(0,6))}</div>
+      <div class="overlay-legend">${sorted.slice(0,6).map((m,i)=>`<span><i style="background:${CMP_COLORS[i%6]}"></i>${esc(m.name)} · ${(m.rate*100).toFixed(1)}%</span>`).join('')}</div>
+    </div>`;
+  document.getElementById('btnSaveCurrent').addEventListener('click',()=>{
+    if(!CURRENT){document.getElementById('cmpStatus').textContent='请先评估一场会议';return;}
+    archiveCurrent();document.getElementById('cmpStatus').textContent='已保存';renderCompare();
+  });
+  document.getElementById('btnCmpCsv').addEventListener('click',()=>{
+    const head=['会议名称','评估时间','总句','废话句','废话率','浪费分钟','废话字数','废话最多','最多句数','阈值','判定模式'];
+    const lines=[head.join(',')].concat(sorted.map(m=>[m.name,m.date,m.total,m.fluff,(m.rate*100).toFixed(1)+'%',m.wasted,m.chars,m.most,m.mostN,m.threshold,m.mode].map(csvCell).join(',')));
+    download('多场会议废话对比_'+Date.now()+'.csv','\ufeff'+lines.join('\r\n'),'text/csv;charset=utf-8');
+  });
+  document.getElementById('btnClearArc').addEventListener('click',()=>{
+    if(!confirm('确认清空全部会议档案？此操作不可撤销。'))return;
+    setArchive([]);renderCompare();
+  });
+  pane.querySelectorAll('[data-del]').forEach(b=>b.addEventListener('click',()=>{
+    setArchive(getArchive().filter(m=>m.id!==b.dataset.del));renderCompare();
+  }));
+}
+
+/* ============ 社区广场：分享 / 点赞 / 评论 ============ */
+const COMMUNITY_KEY='meetingFluffCommunity_v1';
+let SHARED_INBOX=null,OPEN_COMMENTS=null;
+function seedPosts(){
+  return [
+    {id:'demo1',demo:true,author:'小柚',avatar:'柚',title:'产品周会 · 废话率复盘',rate:.38,fluff:12,total:32,wasted:14,king:'老王',kingN:5,tag:'产品周会',time:'示例 · 2 小时前',likes:24,liked:false,comments:[{author:'阿哲',text:'同感，周会最容易跑偏到闲聊。',time:'1 小时前'}]},
+    {id:'demo2',demo:true,author:'阿哲',avatar:'哲',title:'研发日会 · 目标对齐',rate:.19,fluff:6,total:31,wasted:7,king:'小李',kingN:3,tag:'研发日会',time:'示例 · 昨天',likes:41,liked:false,comments:[{author:'小柚',text:'19% 已经很不错了，继续保持。',time:'昨天'}]},
+    {id:'demo3',demo:true,author:'大刘',avatar:'刘',title:'销售复盘会 · 说好的复盘呢',rate:.57,fluff:17,total:30,wasted:33,king:'老王',kingN:9,tag:'销售复盘',time:'示例 · 昨天',likes:68,liked:false,comments:[{author:'敏敏',text:'这个会我参加过，半小时过去还没看到数字。',time:'昨天'},{author:'桃子',text:'建议开场先放三张数据表，堵住嘴。',time:'18 小时前'}]},
+    {id:'demo4',demo:true,author:'桃子',avatar:'桃',title:'行政例会 · 效率天花板',rate:.12,fluff:3,total:25,wasted:4,king:'小陈',kingN:2,tag:'行政例会',time:'示例 · 2 天前',likes:96,liked:false,comments:[{author:'阿杰',text:'全程 15 分钟，散会还有时间喝咖啡。',time:'2 天前'}]},
+    {id:'demo5',demo:true,author:'老K',avatar:'K',title:'项目评审会 · 评着评着成相声',rate:.44,fluff:14,total:32,wasted:21,king:'甲方代表',kingN:7,tag:'立项评审',time:'示例 · 3 天前',likes:57,liked:false,comments:[{author:'小林',text:'最怕那句「我早就跟你说过很多次了」。',time:'3 天前'},{author:'小方',text:'风险清单 7 项，他一句「没那么严重」就想翻篇。',time:'2 天前'}]},
+    {id:'demo6',demo:true,author:'小圆',avatar:'圆',title:'季度规划会 · 务虚 30 分钟',rate:.31,fluff:10,total:32,wasted:16,king:'L总',kingN:6,tag:'季度规划',time:'示例 · 4 天前',likes:33,liked:false,comments:[{author:'阿哲',text:'务虚不是废话，但 30 分钟铺垫确实可以压到 5 分钟。',time:'4 天前'}]},
+    {id:'demo7',demo:true,author:'阿杰',avatar:'杰',title:'客服晨会 · 8 分钟解决战斗',rate:.23,fluff:5,total:22,wasted:6,king:'新人小李',kingN:4,tag:'客服晨会',time:'示例 · 5 天前',likes:45,liked:false,comments:[{author:'小圆',text:'新人问问题不算废话，问完按话术执行就行。',time:'5 天前'}]},
+    {id:'demo8',demo:true,author:'敏敏',avatar:'敏',title:'跨部门扯皮会 · 建议直接取消',rate:.68,fluff:21,total:31,wasted:42,king:'全员轮流',kingN:12,tag:'跨部门协作',time:'示例 · 6 天前',likes:128,liked:false,comments:[{author:'大刘',text:'68% 是认真的吗？我们上周那场估计更高。',time:'6 天前'},{author:'老K',text:'建议下次只发邮件，不用开会。',time:'5 天前'}]}
+  ];
+}
+function ensureDemoPosts(){
+  try{
+    const raw=localStorage.getItem(COMMUNITY_KEY);
+    if(raw===null){setPosts(seedPosts());return;}
+    const arr=JSON.parse(raw);if(!Array.isArray(arr)){setPosts(seedPosts());return;}
+    const ids=new Set(arr.map(p=>p.id));
+    const missing=seedPosts().filter(p=>!ids.has(p.id));
+    if(missing.length)setPosts(arr.filter(p=>!String(p.id).startsWith('demo')).concat(missing));
+  }catch(e){}
+}
+function getPosts(){
+  try{const raw=localStorage.getItem(COMMUNITY_KEY);if(raw===null){const s=seedPosts();setPosts(s);return s;}const a=JSON.parse(raw);return Array.isArray(a)?a:seedPosts();}
+  catch(e){return seedPosts();}
+}
+function setPosts(a){localStorage.setItem(COMMUNITY_KEY,JSON.stringify(a));}
+function publishCurrent(){
+  if(!CURRENT)throw new Error('请先完成一次会议评估');
+  const snap=buildSnapshot();
+  let nick=(document.getElementById('communityNick')||{}).value;
+  try{if(!nick)nick=localStorage.getItem('meetingFluffNick')||'';}catch(e){}
+  nick=nick||'匿名参会人';
+  try{localStorage.setItem('meetingFluffNick',nick.trim());}catch(e){}
+  const tag=(document.getElementById('communityTag')||{}).value||'会议复盘';
+  const posts=getPosts();
+  posts.unshift({id:'p'+Date.now(),author:nick.trim().slice(0,16)||'匿名参会人',avatar:(nick.trim()||'匿').slice(0,1),
+    title:snap.name,rate:snap.rate,fluff:snap.fluff,total:snap.total,wasted:snap.wasted,king:snap.most,kingN:snap.mostN,
+    tag:tag.trim().slice(0,12)||'会议复盘',time:'刚刚',likes:0,liked:false,comments:[]});
+  setPosts(posts);
+  return posts[0];
+}
+function shareText(){
+  if(!CURRENT)return '';
+  const s=buildSnapshot();
+  return '【会议废话率播报】'+s.name+'\n废话率 '+(s.rate*100).toFixed(1)+'% ｜废话 '+s.fluff+'/'+s.total+' 句 ｜估算浪费 '+s.wasted+' 分钟\n废话之王：'+s.most+'（'+s.mostN+' 句）\n—— 用「会议废话率评估智能体」算的，来测测你的会。';
+}
+function makeShareLink(){
+  if(!CURRENT)throw new Error('请先完成一次会议评估');
+  const json=JSON.stringify({v:1,s:buildSnapshot()});
+  const b64=btoa(unescape(encodeURIComponent(json))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  return location.href.split('#')[0]+'#share='+b64;
+}
+function rr(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function fitText(ctx,text,maxW){
+  let out='';for(const ch of String(text)){if(ctx.measureText(out+ch).width>maxW)break;out+=ch;}return out;
+}
+function drawPoster(){
+  if(!CURRENT)throw new Error('请先完成一次会议评估');
+  const s=buildSnapshot();
+  const c=document.createElement('canvas');c.width=720;c.height=1000;
+  const x=c.getContext('2d');
+  const bg=x.createLinearGradient(0,0,720,1000);bg.addColorStop(0,'#ff8ab5');bg.addColorStop(.5,'#ff3d7f');bg.addColorStop(1,'#845ef7');
+  x.fillStyle=bg;x.fillRect(0,0,720,1000);
+  x.globalAlpha=.14;x.fillStyle='#fff';[[70,110,90],[640,220,55],[120,870,70],[620,880,110]].forEach(p=>{x.beginPath();x.arc(p[0],p[1],p[2],0,7);x.fill();});x.globalAlpha=1;
+  x.fillStyle='#fff';rr(x,38,96,644,808,38);x.fill();
+  // 卡通吉祥物
+  x.fillStyle='#fff';x.strokeStyle='#2b2440';x.lineWidth=5;x.beginPath();x.arc(360,238,72,0,7);x.fill();x.stroke();
+  x.fillStyle='#2b2440';x.beginPath();x.arc(334,226,7,0,7);x.fill();x.beginPath();x.arc(386,226,7,0,7);x.fill();
+  x.strokeStyle='#2b2440';x.lineWidth=5;x.beginPath();x.arc(360,248,30,.25*Math.PI,.75*Math.PI);x.stroke();
+  x.fillStyle='#ffb3cd';x.beginPath();x.ellipse(310,247,13,8,0,0,7);x.fill();x.beginPath();x.ellipse(410,247,13,8,0,0,7);x.fill();
+  x.fillStyle='#ffd93d';x.strokeStyle='#2b2440';x.lineWidth=3;x.beginPath();x.moveTo(360,124);x.lineTo(370,150);x.lineTo(397,153);x.lineTo(377,171);x.lineTo(383,198);x.lineTo(360,184);x.lineTo(337,198);x.lineTo(343,171);x.lineTo(323,153);x.lineTo(350,150);x.closePath();x.fill();x.stroke();
+  x.textAlign='center';x.fillStyle='#7f7896';x.font='700 22px "Microsoft YaHei"';x.fillText('本次会议废话率',360,360);
+  x.fillStyle='#ff3d7f';x.font='900 108px "Microsoft YaHei"';x.fillText((s.rate*100).toFixed(1)+'%',360,470);
+  x.fillStyle='#2b2440';x.font='800 34px "Microsoft YaHei"';x.fillText(fitText(x,s.name,540),360,540);
+  const rows=[['废话句数',s.fluff+' / '+s.total+' 句'],['估算浪费',s.wasted+' 分钟'],['废话之王',s.most+'（'+s.mostN+' 句）']];
+  rows.forEach((r,i)=>{
+    const y=606+i*76;x.fillStyle='#f8f4fd';rr(x,90,y-36,540,62,20);x.fill();
+    x.textAlign='left';x.fillStyle='#7f7896';x.font='600 23px "Microsoft YaHei"';x.fillText(r[0],118,y+3);
+    x.textAlign='right';x.fillStyle='#2b2440';x.font='800 25px "Microsoft YaHei"';x.fillText(fitText(x,r[1],330),602,y+3);
+  });
+  x.textAlign='center';x.fillStyle='#845ef7';x.font='800 22px "Microsoft YaHei"';x.fillText('会议废话率评估智能体 · 开会少点废话',360,878);
+  const a=document.createElement('a');a.href=c.toDataURL('image/png');a.download='会议废话率分享海报_'+Date.now()+'.png';a.click();
+}
+function handleShareHash(){
+  const m=location.hash.match(/#share=([^&]+)/);if(!m)return;
+  try{
+    const b64=m[1].replace(/-/g,'+').replace(/_/g,'/');
+    const json=decodeURIComponent(escape(atob(b64)));
+    const o=JSON.parse(json);SHARED_INBOX=(o&&o.v===1&&o.s)?o.s:null;
+  }catch(e){SHARED_INBOX=null;}
+  renderCommunity();
+}
+function renderCommunity(){
+  const pane=document.getElementById('pane-community');if(!pane)return;
+  const posts=getPosts();
+  let savedNick='我';try{savedNick=localStorage.getItem('meetingFluffNick')||'我';}catch(e){}
+  const inbox=SHARED_INBOX?`<div class="inbox"><b>收到一份分享：</b>${esc(SHARED_INBOX.name)} · 废话率 ${(SHARED_INBOX.rate*100).toFixed(1)}% · 废话 ${SHARED_INBOX.fluff}/${SHARED_INBOX.total} 句 · 废话之王 ${esc(SHARED_INBOX.most)}（${SHARED_INBOX.mostN} 句）　<button class="btn" id="btnDismissShare" style="padding:3px 10px;font-size:11px">收起</button></div>`:'';
+  pane.innerHTML=`
+    <div class="community-head">
+      <div><h2>社区广场</h2><div class="sub">把会议废话率晒出来，点赞、吐槽、互相监督 · 数据只存在本机浏览器</div></div>
+      <span class="status">${posts.length} 条动态 · ${posts.reduce((s,p)=>s+p.comments.length,0)} 条评论</span>
+    </div>
+    ${inbox}
+    <div class="publish-box">
+      <div class="publish-row">
+        <input type="text" id="communityNick" class="short" placeholder="你的昵称" value="${esc(savedNick)}">
+        <input type="text" id="communityTag" class="short" placeholder="话题标签" value="会议复盘">
+        <button class="btn primary" id="btnPublishHere">发布当前报告</button>
+        <span class="status" id="communityStatus">${CURRENT?'当前报告：'+esc(CURRENT.name):'先评估一场会议，就可以发布和分享'}</span>
+      </div>
+      <div class="share-tools no-print">
+        <button class="btn" id="btnShareLink">复制分享链接</button>
+        <button class="btn" id="btnShareText">复制分享文案</button>
+        <button class="btn" id="btnPoster">生成分享海报 PNG</button>
+        <button class="btn" id="btnSystemShare">调用系统分享</button>
+        <button class="btn ghost" id="btnImportLink">导入分享链接</button>
+      </div>
+    </div>
+    <div class="feed">
+      ${posts.map(p=>{
+        const open=OPEN_COMMENTS===p.id;
+        return `<div class="post ${p.demo?'demo':''}">
+          <div class="post-top"><div class="avatar">${esc(p.avatar||'匿')}</div><div class="post-meta"><b>${esc(p.author)}</b><span>${esc(p.time)}</span></div>${p.demo?'<span class="chip demo">示例</span>':''}</div>
+          <h4>${esc(p.title)}</h4>
+          <div class="post-stats"><span class="chip hot">废话率 ${(p.rate*100).toFixed(1)}%</span><span class="chip">废话 ${p.fluff}/${p.total} 句</span><span class="chip">浪费 ${p.wasted} 分钟</span><span class="chip">#${esc(p.tag||'会议复盘')}</span></div>
+          <div class="post-bar"><i style="width:${clamp(p.rate*100,0,100)}%"></i></div>
+          <div style="font-size:12px;color:var(--muted)">废话之王：<b style="color:var(--red)">${esc(p.king)}</b>（${p.kingN} 句）</div>
+          <div class="post-actions">
+            <button class="${p.liked?'liked':''}" data-like="${p.id}">${p.liked?'已赞':'点赞'} ${p.likes}</button>
+            <button data-toggle-comment="${p.id}">评论 ${p.comments.length}</button>
+            <button data-share-post="${p.id}">分享</button>
+            ${p.demo?'':`<button data-del-post="${p.id}" style="margin-left:auto">删除</button>`}
+          </div>
+          <div class="comment-area ${open?'open':''}">
+            ${p.comments.map(c=>`<div class="comment"><b>${esc(c.author)}</b>：${esc(c.text)}<span>${esc(c.time)}</span></div>`).join('')||'<div class="hint">还没有评论，来做第一个吐槽的人</div>'}
+            <div class="comment-form"><input type="text" id="cnick-${p.id}" value="我" placeholder="昵称"><input type="text" id="cmt-${p.id}" placeholder="说点什么…" data-enter-comment="${p.id}"><button class="btn primary" data-send-comment="${p.id}">发送</button></div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  const Status=m=>{const el=document.getElementById('communityStatus');if(el)el.textContent=m;};
+  const save=()=>setPosts(posts);
+  document.getElementById('btnPublishHere').addEventListener('click',()=>{try{publishCurrent();Status('已发布到社区广场');renderCommunity();}catch(e){Status('发布失败：'+e.message);}});
+  document.getElementById('btnShareLink').addEventListener('click',()=>{try{copyText(makeShareLink(),'communityStatus');Status('分享链接已复制');}catch(e){Status(e.message);}});
+  document.getElementById('btnShareText').addEventListener('click',()=>{if(!CURRENT){Status('请先评估一场会议');return;}copyText(shareText(),'communityStatus');Status('分享文案已复制');});
+  document.getElementById('btnPoster').addEventListener('click',()=>{try{drawPoster();Status('海报 PNG 已导出');}catch(e){Status(e.message);}});
+  document.getElementById('btnSystemShare').addEventListener('click',async()=>{
+    if(!CURRENT){Status('请先评估一场会议');return;}
+    const data={title:CURRENT.name+' · 废话率报告',text:shareText(),url:makeShareLink()};
+    if(navigator.share){try{await navigator.share(data);Status('已调用系统分享');}catch(e){Status('已取消分享');}}
+    else{copyText(shareText()+'\n'+data.url,'communityStatus');Status('当前环境不支持系统分享，已复制文案+链接');}
+  });
+  document.getElementById('btnImportLink').addEventListener('click',()=>{
+    const url=prompt('粘贴包含 #share= 的分享链接：');if(!url)return;
+    const m=String(url).match(/#share=([^&\s]+)/);
+    if(!m){Status('链接格式不正确');return;}
+    location.hash='share='+m[1];handleShareHash();Status('已导入分享内容');
+  });
+  if(document.getElementById('btnDismissShare'))document.getElementById('btnDismissShare').addEventListener('click',()=>{SHARED_INBOX=null;renderCommunity();});
+  pane.querySelectorAll('[data-like]').forEach(b=>b.addEventListener('click',()=>{
+    const p=posts.find(x=>x.id===b.dataset.like);if(!p)return;
+    p.liked=!p.liked;p.likes+=p.liked?1:-1;save();renderCommunity();
+  }));
+  pane.querySelectorAll('[data-toggle-comment]').forEach(b=>b.addEventListener('click',()=>{
+    OPEN_COMMENTS=OPEN_COMMENTS===b.dataset.toggleComment?null:b.dataset.toggleComment;renderCommunity();
+  }));
+  const sendComment=id=>{
+    const p=posts.find(x=>x.id===id);if(!p)return;
+    const input=document.getElementById('cmt-'+id),txt=(input&&input.value||'').trim();
+    if(!txt){Status('评论内容不能为空');return;}
+    const nick=((document.getElementById('cnick-'+id)||{}).value||'我').trim()||'我';
+    p.comments.push({author:nick,text:txt,time:'刚刚'});save();OPEN_COMMENTS=id;renderCommunity();
+  };
+  pane.querySelectorAll('[data-send-comment]').forEach(b=>b.addEventListener('click',()=>sendComment(b.dataset.sendComment)));
+  pane.querySelectorAll('[data-enter-comment]').forEach(i=>i.addEventListener('keydown',e=>{if(e.key==='Enter')sendComment(e.target.dataset.enterComment);}));
+  pane.querySelectorAll('[data-share-post]').forEach(b=>b.addEventListener('click',()=>{
+    const p=posts.find(x=>x.id===b.dataset.sharePost);if(!p)return;
+    copyText('【会议废话率播报】'+p.title+'\n废话率 '+(p.rate*100).toFixed(1)+'% ｜废话 '+p.fluff+'/'+p.total+' 句 ｜废话之王 '+p.king+'（'+p.kingN+' 句）\n—— 来自社区广场', 'communityStatus');Status('这条动态已复制，可直接粘贴分享');
+  }));
+  pane.querySelectorAll('[data-del-post]').forEach(b=>b.addEventListener('click',()=>{
+    if(!confirm('确认删除这条动态？'))return;
+    const arr=getPosts().filter(x=>x.id!==b.dataset.delPost);setPosts(arr);renderCommunity();
+  }));
+}
+function applyTheme(t){
+  document.body.classList.toggle('theme-cartoon',t==='cartoon');
+  const a=document.getElementById('themeCartoon'),b=document.getElementById('themeBusiness');
+  if(a)a.classList.toggle('on',t==='cartoon');
+  if(b)b.classList.toggle('on',t!=='cartoon');
+  try{localStorage.setItem('meetingFluffTheme',t);}catch(e){}
+}
+function initTheme(){
+  let t='cartoon';try{t=localStorage.getItem('meetingFluffTheme')||'cartoon';}catch(e){}
+  applyTheme(t);
+  document.getElementById('themeCartoon').addEventListener('click',()=>applyTheme('cartoon'));
+  document.getElementById('themeBusiness').addEventListener('click',()=>applyTheme('business'));
+}
+
+function countSum(e){return e.reduce((s,x)=>s+x[1],0)||1;}
+function drawDetail(){
+  const d=CURRENT; if(!d)return;
+  const sp=document.getElementById('fSpeaker').value,ty=document.getElementById('fType').value;
+  const kw=document.getElementById('fSearch').value.trim(),only=document.getElementById('fOnlyFluff').checked;
+  const list=d.rows.filter(r=>(!sp||r.speaker===sp)&&(!ty||r.type===ty)&&(!only||r.isFluff)&&(!kw||r.text.includes(kw)));
+  document.getElementById('detailCount').textContent='显示 '+list.length+' / '+d.rows.length+' 句';
+  document.querySelector('#detailTable tbody').innerHTML=list.map(r=>{
+    const hl=kw?esc(r.text).replace(new RegExp(kw.replace(/[.*+?^${}()|[\]\\]/g,'\\$&'),'g'),m=>`<em>${m}</em>`):esc(r.text);
+    return `<tr><td>${r.id}</td><td>${esc(r.time||'—')}</td><td><b>${esc(r.speaker)}</b></td><td class="sent">${hl}</td>
+      <td><div class="scorebar ${r.score<d.threshold?'low':''}"><div class="bar"><i style="width:${r.score}%"></i></div><b>${r.score}</b></div></td>
+      <td><span class="pill ${r.isFluff?'fluff':'ok'}">${r.type}</span></td><td>${r.len}</td><td class="reason">${esc(r.reason)}</td></tr>`;
+  }).join('')||'<tr><td colspan="8" style="text-align:center;color:#9ca3af;padding:24px">没有符合条件的句子</td></tr>';
+}
+
+/* ============ 导出 ============ */
+function download(name,content,type){
+  const blob=new Blob([content],{type:type||'text/plain;charset=utf-8'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+}
+function csvCell(v){const s=String(v==null?'':v);return /[",\n]/.test(s)?'"'+s.replace(/"/g,'""')+'"':s;}
+function exportCsv(){
+  const head=['序号','时间','发言人','原句','字数','相关度','是否废话','废话类型','离谱指数','判定依据'];
+  const lines=[head.join(',')].concat(CURRENT.rows.map(r=>[r.id,r.time,r.speaker,r.text,r.len,r.score,r.isFluff?'是':'否',r.type,r.absurdity,r.reason].map(csvCell).join(',')));
+  download('会议废话明细_'+Date.now()+'.csv','\ufeff'+lines.join('\r\n'),'text/csv;charset=utf-8');
+}
+function exportReport(){
+  const html=document.getElementById('pane-report').querySelector('.report').outerHTML;
+  download('会议废话率评估报告_'+Date.now()+'.html','<!DOCTYPE html><html lang="zh-CN"><head><meta charset="UTF-8"><title>会议废话率评估报告</title><style>body{font-family:"Microsoft YaHei",sans-serif;max-width:900px;margin:40px auto;padding:0 20px;color:#1f2329}table{width:100%;border-collapse:collapse}th,td{border:1px solid #e5e7eb;padding:8px;text-align:left}h3,h4{color:#c8102e}</style></head><body>'+html+'</body></html>','text/html;charset=utf-8');
+  document.getElementById('exportHint').textContent='已导出 HTML 报告';
+}
+
+/* ============ 主流程 ============ */
+const DEMO=`【会议纪要】2026 Q3 电源产品规划评审
+张伟 09:30：大家早上好，今天天气不错，我们先开始吧，那个，嗯，好久没开会了。
+李娜 09:31：好的，我先介绍一下 Q3 消费电源的出货目标，预计 120 万台，比 Q2 增长 18%。
+王强 09:32：嗯，那个，我觉得吧，这个目标呢，怎么说呢，还是有一定挑战的，对吧。
+李娜 09:33：挑战主要在高端 65W 快充的物料交期，目前交期 12 周，需要提前锁料。
+张伟 09:34：这个我知道，大家都知道供应链现在比较紧张，这个事情呢，我们之前也讨论过很多次了，对吧，其实吧，我觉得可能大概也许还是要再看看。
+王强 09:35：对，我补充一下，网络服务器电源那边客户已经要求 8 周交付，我们可能需要提前备货 3 个月。
+李娜 09:36：提前备货会增加库存资金占用，我算了一下大概 2300 万，这个需要财务确认。
+陈明 09:38：嗯，我觉得可能大概也许可以跟供应商谈一个 VMI，不过这个回头再说吧，先这样吧，谢谢大家。
+张伟 09:39：行，我们先聚焦议题。对了上周我周末去打球，遇到一个老朋友，他说现在股票行情不错，可以考虑一下。
+王强 09:40：发热问题我这边有数据，65W 满载温升 38 度，在规格范围内，处置方案是加导热垫。
+李娜 09:41：那我们先定下来：Q3 目标 120 万台；65W 物料 8 周前锁定；温升问题列为跟进项，陈明负责。
+陈明 09:42：好的好的，辛苦了，谢谢大家，我这边没有别的意见了，嗯，就这些。`;
+
+const DEMO_MEETINGS=[
+  {name:'销售复盘会 · 说好的复盘呢',threshold:50,names:'大刘,老王,小周,敏敏',
+   topics:'Q4 订单转化率与报价周期\n大客户逾期回款处理\n渠道政策调整方案',
+   minutes:`大刘 14:00：大家下午好，我们先开始吧，嗯，今天人来得挺齐的。
+老王 14:01：那个，我觉得吧，这个月的业绩呢，怎么说呢，整体还是可以的，对吧，虽然具体数字我还没看。
+小周 14:02：Q4 订单转化率 18%，比目标低 4 个百分点，主要卡在报价周期太长。
+敏敏 14:03：大客户回款方面，有 3 家逾期超过 30 天，合计 860 万，需要销售总监介入。
+老王 14:04：其实吧，这个事情呢，我早就跟客户说过很多次了，大家都知道现在客户预算紧，对吧，我们也没办法。
+大刘 14:05：上周我去参加了行业峰会，顺便吃了顿饭，听说隔壁公司在搞渠道改革，这个事情我们可以再看看。
+小周 14:06：渠道政策建议改成阶梯返点，我先出一版测算，周五前发出来。
+敏敏 14:07：好的好的，辛苦了，谢谢大家，我这边没什么补充的，嗯，就这些。`},
+  {name:'行政例会 · 效率天花板',threshold:50,names:'桃子,小陈,阿杰',
+   topics:'办公场地搬迁时间与供应商\n员工工位分配方案\n搬迁预算审批与网络割接',
+   minutes:`桃子 10:00：今天只讨论三件事：搬迁时间、工位安排、预算审批。
+小陈 10:01：办公场地搬迁计划定在 12 月 5 日，供应商已确认，搬迁费用 28 万。
+阿杰 10:02：工位安排按部门集中，研发 42 个工位，职能 18 个，已经有排布图。
+桃子 10:03：预算审批走 OA，28 万在年度行政预算内，财务已经预审通过。
+小陈 10:04：剩下的是 IT 网络割接，需要周六下午 2 小时窗口，不影响周一办公。
+阿杰 10:05：确认无误，我负责通知全员，周五发搬迁指南。`},
+  {name:'项目评审会 · 评着评着成相声',threshold:50,names:'老K,甲方代表,小林,小方',
+   topics:'新项目立项评审结论\n投资回报测算与回收期\n风险清单与备选供应商\n研发测试资源排期',
+   minutes:`老K 09:00：各位早上好，今天我们开个立项评审，那个，先请业务那边介绍一下背景吧。
+甲方代表 09:02：嗯，这个背景呢，其实说起来话就长了，我们从去年就开始聊这个事情了，中间也换了几拨人，对吧。
+小林 09:04：投资回报测算：项目投入 480 万，三年回收期 2.4 年，IRR 21%。
+小方 09:05：风险清单目前 7 项，其中供应链单一来源风险为高，建议增加备选供应商。
+甲方代表 09:07：其实吧，我觉得可能大概也许这个风险没那么严重，你们太保守了，我们以前做过类似项目，都没出过问题。
+老K 09:09：资源排期这块，研发需要 6 人月，测试 2 人月，最早 12 月启动。
+小方 09:10：好的，我按这个排期更新计划，会后发纪要。`},
+  {name:'客服晨会 · 8 分钟解决战斗',threshold:50,names:'阿杰,小圆,新人小李',
+   topics:'昨日客诉量与环比变化\n高频问题分类与标准话术\n今日值班安排与复盘时间',
+   minutes:`阿杰 08:30：早会开始，昨日客诉 46 单，比前天下降 12%。
+小圆 08:31：高频问题集中在充电器发热和物流延迟，各占 35% 和 28%，已经有标准话术。
+新人小李 08:32：那个，嗯，我想问一下，就是那个发热的问题，是不是要跟客户说等通知啊？
+阿杰 08:33：不用，发热问题直接按标准话术回复，附检测报告，不需要等通知。
+新人小李 08:34：哦哦，好的好的，我明白了，谢谢大家。
+小圆 08:35：今日值班：我负责一线，阿杰二线兜底，下午 3 点复盘。`}
+];
+function loadDemoMeeting(i){
+  const m=DEMO_MEETINGS[i];if(!m)return;
+  document.getElementById('meetingName').value=m.name;
+  document.getElementById('topics').value=m.topics;
+  document.getElementById('names').value=m.names;
+  document.getElementById('minutes').value=m.minutes;
+  document.getElementById('threshold').value=m.threshold||50;
+  preParse();
+  run();
+}
+
+function loadDemo(){
+  document.getElementById('meetingName').value='2026 Q3 电源产品规划评审';
+  document.getElementById('topics').value='Q3 消费电源出货目标与产能安排\n65W 快充物料交期与备货策略\n服务器电源 8 周交付承诺风险\n充电器温升异常处理方案\n库存资金占用与 VMI 方案';
+  document.getElementById('names').value='张伟,李娜,王强,陈明';
+  document.getElementById('minutes').value=DEMO;
+  preParse();
+}
+function preParse(){
+  const known=document.getElementById('names').value.split(/[,，、；;\n\s]+/).filter(Boolean);
+  const recs=parseMinutes(document.getElementById('minutes').value,known);
+  const speakers=uniq(recs.map(r=>r.speaker));
+  document.getElementById('parseStatus').textContent=recs.length+' 条发言 · '+speakers.length+' 人';
+  document.getElementById('detectedNames').innerHTML=speakers.map(s=>`<span class="tag">${esc(s)}</span>`).join('')||'<span class="hint">解析纪要后自动识别发言人</span>';
+  document.getElementById('cfgStatus').textContent=recs.length?'已识别 '+speakers.length+' 位发言人':'等待输入';
+  return recs;
+}
+async function run(){
+  const btn=document.getElementById('btnRun');const old=btn.textContent;
+  const topics=document.getElementById('topics').value.trim();
+  const recs=preParse();
+  if(!recs.length){alert('请先粘贴或上传会议纪要内容');return;}
+  if(!topics){alert('请填写本次会议议题，废话判定以议题为基准');return;}
+  const threshold=clamp(Number(document.getElementById('threshold').value)||50,10,90);
+  btn.disabled=true;btn.textContent='评估中…';
+  try{
+    let rows=analyzeLocal({topics,keywords:document.getElementById('names').value,recs},threshold);
+    let mode='本地规则引擎';
+    if(document.getElementById('useAI').checked){
+      btn.textContent='AI 语义复核中…';
+      const n=await aiReview(rows,topics,{base:document.getElementById('apiBase').value,key:document.getElementById('apiKey').value.trim(),model:document.getElementById('apiModel').value.trim()||'gpt-4o-mini'});
+      mode='本地规则 + AI 语义复核（'+n+' 句）';
+    }
+    CURRENT={name:document.getElementById('meetingName').value.trim()||'未命名会议',topics,keywords:document.getElementById('names').value,recs,rows,threshold,mode};
+    document.getElementById('result').hidden=false;
+    CURRENT.rows=rows;
+    render();
+    document.getElementById('result').scrollIntoView({behavior:'smooth',block:'start'});
+  }catch(e){
+    alert('评估失败：'+e.message+'\n\n可取消「启用 AI 语义复核」后使用纯本地规则模式。');
+  }finally{btn.disabled=false;btn.textContent=old;}
+}
+
+/* ============ 事件 ============ */
+document.querySelectorAll('.tab').forEach(t=>t.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('on',x===t));
+  document.querySelectorAll('.tabpane').forEach(p=>p.classList.toggle('on',p.id==='pane-'+t.dataset.tab));
+}));
+document.getElementById('useAI').addEventListener('change',e=>{document.getElementById('aiPanel').hidden=!e.target.checked;});
+document.getElementById('btnDemo').addEventListener('click',loadDemo);
+document.querySelectorAll('[data-demo]').forEach(b=>b.addEventListener('click',()=>loadDemoMeeting(Number(b.dataset.demo))));
+document.getElementById('btnClear').addEventListener('click',()=>{
+  ['meetingName','topics','names','minutes'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('result').hidden=true;preParse();
+});
+document.getElementById('btnRun').addEventListener('click',run);
+document.getElementById('minutes').addEventListener('input',preParse);
+document.getElementById('names').addEventListener('input',preParse);
+document.getElementById('fileInput').addEventListener('change',e=>{
+  const f=e.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{
+    let txt=String(r.result);
+    if(/\.csv$/i.test(f.name)){
+      const lines=txt.replace(/^\ufeff/,'').split(/\r?\n/);
+      const head=lines[0].split(',').map(s=>s.trim().toLowerCase());
+      const si=head.findIndex(h=>/speaker|发言|姓名|name/.test(h)),ti=head.findIndex(h=>/time|时间/.test(h)),xi=head.findIndex(h=>/text|content|内容|发言/.test(h));
+      if(si>=0&&xi>=0){
+        txt=lines.slice(1).filter(Boolean).map(l=>{
+          const c=l.split(',');return (c[ti]?('['+c[ti]+'] '):'')+(c[si]||'')+'：'+(c[xi]||'');
+        }).join('\n');
+      }
+    }
+    document.getElementById('minutes').value=txt;
+    document.getElementById('fileHint').textContent='已载入 '+f.name+'（'+txt.length+' 字符）';
+    preParse();
+  };
+  r.readAsText(f,'UTF-8');
+  e.target.value='';
+});
+document.addEventListener('keydown',e=>{if((e.ctrlKey||e.metaKey)&&e.key==='Enter'){e.preventDefault();run();}});
+initTheme();
+ensureDemoPosts();
+window.addEventListener('hashchange',handleShareHash);
+handleShareHash();
+</script>
+</body>
+</html>
